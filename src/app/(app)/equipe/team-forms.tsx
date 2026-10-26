@@ -1,11 +1,11 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { CircleCheck, Copy, LoaderCircle, Mail, UserPlus, UserRound } from "lucide-react";
+import { AlertTriangle, CircleCheck, Copy, KeyRound, LoaderCircle, Mail, Trash2, UserPlus, UserRound, X } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
 import { DEPARTMENT_LABEL, ROLE_LABEL } from "@/lib/labels";
-import { FormMessage } from "@/components/page-header";
+import { Alert, FormMessage } from "@/components/page-header";
 import { ChoiceChips, IconField } from "@/components/form-controls";
 import type { CreateUserState } from "./actions";
 
@@ -121,40 +121,227 @@ export function CreateUserForm({
   );
 }
 
-export function MemberForm({
+/** Edição completa de uma pessoa da equipe. */
+export function EditMemberForm({
   action,
   member,
   isSelf,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
-  member: { role: string; department: string | null; active: boolean };
+  member: { full_name: string; email: string; role: Role; department: keyof typeof DEPARTMENT_LABEL | null; active: boolean };
   isSelf: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const [state, dispatch, pending] = useActionState(action, {});
+  const [name, setName] = useState(member.full_name);
+  const [email, setEmail] = useState(member.email);
+  const [role, setRole] = useState<Role>(member.role);
+  const [dep, setDep] = useState<DepChoice>(member.department ?? "nenhum");
+  const [active, setActive] = useState(member.active);
+  const err = state.errors ?? {};
+
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(() => dispatch(fd));
+  }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
-      <select name="role" defaultValue={member.role} className="input w-auto py-1" aria-label="Cargo" disabled={isSelf}>
-        {Object.entries(ROLE_LABEL).map(([val, l]) => (
-          <option key={val} value={val}>{l}</option>
-        ))}
-      </select>
-      {/* Campo desabilitado não é enviado: repete o valor para a própria conta */}
-      {isSelf && <input type="hidden" name="role" value={member.role} />}
-      <select name="department" defaultValue={member.department ?? ""} className="input w-auto py-1" aria-label="Departamento">
-        <option value="">— Nenhum —</option>
-        {Object.entries(DEPARTMENT_LABEL).map(([val, l]) => (
-          <option key={val} value={val}>{l}</option>
-        ))}
-      </select>
-      <label className="flex items-center gap-1 text-xs font-semibold">
-        <input type="checkbox" name="active" defaultChecked={member.active} disabled={isSelf} />
-        Ativo
-      </label>
-      {isSelf && <input type="hidden" name="active" value="on" />}
-      <button className="btn-secondary py-1" disabled={pending}>{pending ? "…" : "Salvar"}</button>
-      {state.errors?._form && <span className="text-xs font-medium text-danger">{state.errors._form}</span>}
-      {state.ok && <span className="text-xs font-medium text-ok">Salvo</span>}
+    <form onSubmit={submit} className="space-y-5" noValidate>
+      <FormMessage state={state} />
+      <IconField label="Nome completo" name="full_name" icon={UserRound} value={name} onChange={(e) => setName(e.target.value)} error={err.full_name} />
+      <IconField
+        label="E-mail de acesso"
+        name="email"
+        type="email"
+        icon={Mail}
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        error={err.email}
+        hint="Ao mudar, a pessoa passa a entrar com o novo e-mail."
+      />
+      {isSelf ? (
+        <>
+          <input type="hidden" name="role" value={role} />
+          <p className="rounded-xl bg-surface-2 px-4 py-3 text-sm text-muted">
+            Você é <strong className="text-ink">{ROLE_LABEL[role]}</strong>. Por segurança, não é possível mudar o próprio cargo nem desativar a própria conta.
+          </p>
+        </>
+      ) : (
+        <ChoiceChips
+          label="Cargo"
+          name="role"
+          value={role}
+          onChange={(r) => { setRole(r); if (r === "colaborador" && dep === "nenhum") setDep("contabil"); }}
+          options={(Object.keys(ROLE_LABEL) as Role[]).map((r) => ({ value: r, label: ROLE_LABEL[r], hint: ROLE_HINT[r] }))}
+        />
+      )}
+      <ChoiceChips
+        label={role === "colaborador" ? "Departamento" : "Departamento (opcional)"}
+        name="department_choice"
+        columns={role === "colaborador" ? 4 : 5}
+        value={dep}
+        onChange={setDep}
+        error={err.department}
+        options={[
+          ...(Object.keys(DEPARTMENT_LABEL) as (keyof typeof DEPARTMENT_LABEL)[]).map((d) => ({
+            value: d as DepChoice,
+            label: d === "dp" ? "DP" : DEPARTMENT_LABEL[d],
+          })),
+          ...(role === "colaborador" ? [] : [{ value: "nenhum" as DepChoice, label: "Nenhum" }]),
+        ]}
+      />
+      <input type="hidden" name="department" value={dep === "nenhum" ? "" : dep} />
+
+      {isSelf ? (
+        <input type="hidden" name="active" value="on" />
+      ) : (
+        <label
+          className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+            active ? "border-line hover:border-brand-500/60" : "border-danger/40 bg-danger-soft"
+          }`}
+        >
+          <input type="checkbox" name="active" checked={active} onChange={(e) => setActive(e.target.checked)} className="mt-1 h-4 w-4 accent-brand-600" />
+          <span>
+            <span className="font-bold">Acesso ativo</span>
+            <span className="block text-sm text-muted">
+              Desmarque para bloquear o login imediatamente. O histórico e as responsabilidades são mantidos.
+            </span>
+          </span>
+        </label>
+      )}
+
+      <button className="btn-primary w-full py-3" disabled={pending}>
+        {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CircleCheck className="h-4 w-4" />}
+        {pending ? "Salvando…" : "Salvar alterações"}
+      </button>
     </form>
+  );
+}
+
+/** Gera e mostra uma nova senha provisória. */
+export function ResetPasswordButton({ action }: { action: () => Promise<CreateUserState> }) {
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<CreateUserState | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={pending}
+        onClick={() => start(async () => { setCopied(false); setResult(await action()); })}
+      >
+        {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+        Gerar nova senha provisória
+      </button>
+      {result?.errors?._form && <p className="text-sm font-medium text-danger">{result.errors._form}</p>}
+      {result?.tempPassword && (
+        <div role="status" className="rounded-2xl border border-line bg-surface-2 p-4">
+          <p className="text-xs font-bold tracking-wide text-muted uppercase">Nova senha provisória (aparece só agora)</p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 font-mono text-lg select-all">{result.tempPassword}</code>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={async () => { await navigator.clipboard.writeText(result.tempPassword!); setCopied(true); }}
+            >
+              {copied ? <CircleCheck className="h-4 w-4 text-ok" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copiada" : "Copiar"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-muted">A senha anterior deixou de valer. Entregue por um canal seguro.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Botão + janela de confirmação para excluir uma conta da equipe. */
+export function DeleteMemberButton({
+  name,
+  responsibilities,
+  people,
+  action,
+  compact = false,
+}: {
+  name: string;
+  /** Quantos vínculos de responsável a pessoa tem (undefined = não informado). */
+  responsibilities?: number;
+  people: { id: string; full_name: string }[];
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState(action, {});
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const uid = useId();
+
+  useEffect(() => {
+    const d = dialogRef.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={compact ? "btn-danger px-3 py-1.5 text-xs" : "btn-danger"}
+        aria-label={`Excluir ${name}`}
+      >
+        <Trash2 className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} /> Excluir
+      </button>
+      <dialog
+        ref={dialogRef}
+        onClose={() => setOpen(false)}
+        aria-labelledby={`${uid}-t`}
+        className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-(--shadow-lift) backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+      >
+        <form action={formAction} className="p-6">
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-danger-soft text-danger"><AlertTriangle className="h-5 w-5" /></span>
+            <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted hover:bg-surface-2" aria-label="Fechar"><X className="h-5 w-5" /></button>
+          </div>
+          <h2 id={`${uid}-t`} className="mt-4 text-xl font-extrabold">Excluir conta?</h2>
+          <p className="mt-1 text-sm text-muted">
+            A conta de <strong className="text-ink">{name}</strong> será removida de forma <strong className="text-ink">permanente</strong> e
+            a pessoa não conseguirá mais entrar.
+          </p>
+
+          <div className="mt-4">
+            <label htmlFor={`${uid}-tr`} className="label">
+              Responsabilidades sobre clientes{typeof responsibilities === "number" ? ` (${responsibilities})` : ""}
+            </label>
+            <select id={`${uid}-tr`} name="transfer_to" className="input" defaultValue="">
+              <option value="">Remover (os clientes ficam sem responsável)</option>
+              {people.map((p) => <option key={p.id} value={p.id}>Transferir para {p.full_name}</option>)}
+            </select>
+          </div>
+
+          <div className="mt-4">
+            <Alert tone="info">
+              Se a pessoa apenas saiu da empresa, prefira <strong>desativar</strong> o acesso na tela de edição: o login
+              é bloqueado e o nome continua aparecendo corretamente no histórico.
+            </Alert>
+          </div>
+
+          <label htmlFor={`${uid}-c`} className="label mt-5">Para confirmar, digite <strong>EXCLUIR</strong></label>
+          <input id={`${uid}-c`} name="confirm" className="input" autoComplete="off" autoFocus />
+          {state.errors?.confirm && <p className="field-error">{state.errors.confirm}</p>}
+          {state.errors?._form && <div className="mt-3"><Alert tone="danger">{state.errors._form}</Alert></div>}
+
+          <div className="mt-6 flex justify-end gap-2">
+            <button type="button" onClick={() => setOpen(false)} className="btn-secondary">Cancelar</button>
+            <button type="submit" disabled={pending} className="btn bg-danger text-white hover:brightness-110">
+              {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {pending ? "Excluindo…" : "Excluir definitivamente"}
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
   );
 }
