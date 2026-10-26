@@ -298,7 +298,7 @@ export function DeleteMemberButton({
         ref={dialogRef}
         onClose={() => setOpen(false)}
         aria-labelledby={`${uid}-t`}
-        className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-left text-ink shadow-(--shadow-lift) backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+        className="m-auto w-[min(32rem,calc(100vw-2rem))] overflow-x-hidden rounded-2xl border border-line bg-surface p-0 text-left whitespace-normal text-ink shadow-(--shadow-lift) backdrop:bg-black/50 backdrop:backdrop-blur-sm"
       >
         <form action={formAction} className="p-6">
           <div className="flex items-start justify-between gap-3">
@@ -335,7 +335,7 @@ export function DeleteMemberButton({
 
           <div className="mt-6 flex justify-end gap-2">
             <button type="button" onClick={() => setOpen(false)} className="btn-secondary">Cancelar</button>
-            <button type="submit" disabled={pending} className="btn bg-danger text-white hover:brightness-110">
+            <button type="submit" disabled={pending} className="btn-danger-solid">
               {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               {pending ? "Excluindo…" : "Excluir definitivamente"}
             </button>
