@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { MessageCircle, Plus } from "lucide-react";
+import { MessageCircle, Plus, Ticket } from "lucide-react";
+import { OPEN_STATUSES, STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_TONE as TICKET_STATUS_TONE, slaState, ticketNumber } from "@/lib/tickets";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
 import {
   CLIENT_STATUS_LABEL,
@@ -50,7 +51,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const supabase = await createClient();
   // Tudo em paralelo: cada consulta ao banco leva ~0,3 s. O histórico só retorna dados
   // para a gestão (regra do banco), então pode ser pedido sempre.
-  const [profile, { data: client }, contacts, services, responsibles, people, history] = await Promise.all([
+  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets] = await Promise.all([
     requireProfile(),
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("client_contacts").select("*").eq("client_id", id).order("is_primary", { ascending: false }).order("name"),
@@ -63,6 +64,13 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
       .or(`record_id.eq.${id},new_data->>client_id.eq.${id},old_data->>client_id.eq.${id}`)
       .order("created_at", { ascending: false })
       .limit(30),
+    // Situação operacional: tickets do cliente (os abertos primeiro)
+    supabase
+      .from("tickets")
+      .select("id, number, title, status, department, resolution_due_at, risk_at, resolved_at, created_at")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
   // RLS: se a pessoa não tem acesso, o banco não devolve o registro -> 404
   if (!client) notFound();
@@ -125,6 +133,38 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
+          <section className="card p-6" aria-labelledby="tickets-cliente">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 id="tickets-cliente" className="flex items-center gap-2 text-lg font-extrabold">
+                <Ticket className="h-5 w-5 text-link" /> Tickets
+              </h2>
+              <Link href={`/tickets/novo?cliente=${id}`} className="btn-secondary"><Plus className="h-4 w-4" /> Novo ticket</Link>
+            </div>
+            {!tickets.data?.length ? (
+              <p className="text-sm text-muted">Nenhuma solicitação registrada para este cliente.</p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {[...tickets.data]
+                  .sort((a, b) => Number(OPEN_STATUSES.includes(b.status as never)) - Number(OPEN_STATUSES.includes(a.status as never)))
+                  .map((tk) => {
+                    const st = slaState(tk);
+                    return (
+                      <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                        <Link href={`/tickets/${tk.id}`} className="link">
+                          <span className="mr-1 text-muted tabular-nums">{ticketNumber(tk.number)}</span>{tk.title}
+                        </Link>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <Badge>{DEPARTMENT_LABEL[tk.department]}</Badge>
+                          <Badge tone={TICKET_STATUS_TONE[tk.status]}>{TICKET_STATUS_LABEL[tk.status]}</Badge>
+                          <Badge tone={st.tone}>{st.label}</Badge>
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+          </section>
+
           <section className="card p-6" aria-labelledby="dados">
             <h2 id="dados" className="mb-4 text-lg font-extrabold">Dados cadastrais</h2>
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">

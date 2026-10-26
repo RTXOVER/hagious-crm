@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run tests/validation.test.ts",
+    "test": "vitest run tests/validation.test.ts tests/tickets.test.ts",
     "test:db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/permissions.test.ts",
-    "create-admin": "node --env-file=.env.local scripts/create-admin.mjs"
+    "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
+    "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -29,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "pg": "^8.23.1",
     "supabase": "^2.122.0",
     "tailwindcss": "^4",
     "typescript": "^5",

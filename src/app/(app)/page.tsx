@@ -5,6 +5,9 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Clock,
+  Ticket,
+  UserX,
   History,
   MessageCircle,
   Plus,
@@ -13,7 +16,7 @@ import {
 } from "lucide-react";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { loadDashboard } from "@/lib/dashboard";
+import { loadDashboard, loadTicketStats } from "@/lib/dashboard";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
 import { BarList, ColumnChart, Meter } from "@/components/charts";
 import { DEPARTMENT_LABEL, TAX_REGIME_LABEL } from "@/lib/labels";
@@ -33,7 +36,12 @@ const dateTime = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo
 export default async function DashboardPage(props: PageProps<"/">) {
   const supabase = await createClient();
   // Perfil, indicadores e histórico em paralelo (cada consulta ao banco leva ~0,3 s)
-  const [profile, dash, { erro }] = await Promise.all([requireProfile(), loadDashboard(supabase), props.searchParams]);
+  const [profile, dash, tk, { erro }] = await Promise.all([
+    requireProfile(),
+    loadDashboard(supabase),
+    loadTicketStats(supabase),
+    props.searchParams,
+  ]);
   const manager = isManager(profile);
 
   const activity = manager
@@ -65,6 +73,23 @@ export default async function DashboardPage(props: PageProps<"/">) {
 
       {erro === "sem-permissao" && (
         <div className="mb-6"><Alert tone="warn">Você não tem permissão para acessar aquela página.</Alert></div>
+      )}
+
+      {tk && (
+        <section className="mb-6" aria-labelledby="tickets-kpi">
+          <h2 id="tickets-kpi" className="mb-3 flex items-center gap-2 text-sm font-bold tracking-wide text-muted uppercase">
+            <Ticket className="h-4 w-4" /> Tickets
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <Stat href="/tickets" icon={Ticket} label="Abertos" value={tk.open} note="Em andamento ou aguardando" />
+            <Stat href="/tickets?visao=risco" icon={Clock} label="Em risco" value={tk.risk} note="Perto do vencimento" />
+            <Stat href="/tickets?visao=atrasados" icon={AlertTriangle} label="Atrasados" value={tk.late} note={tk.late ? "Gestão já foi avisada" : "Nenhum atrasado"} />
+            <Stat href="/tickets" icon={UserX} label="Sem responsável" value={tk.unassigned} note="Na fila do departamento" />
+            <Stat href="/tickets?visao=encerrados" icon={CheckCircle2} label="Prazo cumprido (30 dias)" value={tk.onTime30}>
+              <Meter value={tk.onTime30} total={tk.closed30} label="Tickets concluídos no prazo nos últimos 30 dias" />
+            </Stat>
+          </div>
+        </section>
       )}
 
       {t.clients === 0 ? (

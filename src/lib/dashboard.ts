@@ -20,7 +20,41 @@ async function fetchAll<T>(query: (from: number, to: number) => PromiseLike<{ da
   }
 }
 
-export type AttentionItem = { id: string; name: string; issues: string[] };
+/**
+ * Indicadores de tickets (respeitam as permissões de quem vê).
+ * - Abertos: situação aberto, em andamento ou aguardando cliente.
+ * - Em risco / atrasados: mesmos critérios dos alertas automáticos; tickets pausados não contam.
+ * - Cumprimento do prazo (30 dias): concluídos nos últimos 30 dias resolvidos até o prazo / total concluído.
+ * Retorna null se a estrutura de tickets ainda não existir no banco.
+ */
+export async function loadTicketStats(supabase: DB) {
+  const now = new Date().toISOString();
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const open = ["aberto", "em_andamento", "aguardando_cliente"] as const;
+  const count = (q: PromiseLike<{ count: number | null; error: unknown }>) => q;
+  const base = () => supabase.from("tickets").select("id", { count: "exact", head: true }).in("status", [...open]);
+
+  const [all, late, risk, unassigned, closed] = await Promise.all([
+    count(base()),
+    count(base().neq("status", "aguardando_cliente").lt("resolution_due_at", now)),
+    count(base().neq("status", "aguardando_cliente").lte("risk_at", now).gte("resolution_due_at", now)),
+    count(base().is("assignee_id", null)),
+    supabase.from("tickets").select("resolved_at, resolution_due_at").eq("status", "concluido").gte("resolved_at", since).limit(5000),
+  ]);
+  if (all.error) return null;
+  const done = closed.data ?? [];
+  const onTime = done.filter((t) => t.resolved_at && t.resolution_due_at && t.resolved_at <= t.resolution_due_at).length;
+  return {
+    open: all.count ?? 0,
+    late: late.count ?? 0,
+    risk: risk.count ?? 0,
+    unassigned: unassigned.count ?? 0,
+    closed30: done.length,
+    onTime30: onTime,
+  };
+}
+
+export type AttentionItem ={ id: string; name: string; issues: string[] };
 
 /**
  * Indicadores do painel. Como a consulta usa a sessão do usuário,

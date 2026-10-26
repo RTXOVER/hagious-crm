@@ -134,9 +134,10 @@ export function DeleteClientButton({
                 <li>{counts.contacts} contato(s)</li>
                 <li>{counts.services} serviço(s) contratado(s)</li>
                 <li>{counts.responsibles} responsável(is) definido(s)</li>
+                <li>Todos os tickets e o histórico de atendimento deste cliente</li>
               </>
             ) : (
-              <li>Todos os contatos, serviços contratados e responsáveis deste cliente</li>
+              <li>Todos os contatos, serviços, responsáveis e tickets deste cliente</li>
             )}
           </ul>
           <div className="mt-4">

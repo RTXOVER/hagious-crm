@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  Bell,
+  Settings2,
   Building2,
   CalendarClock,
   CircleUserRound,
@@ -23,13 +25,15 @@ type NavItem = { href: string; label: string; icon: React.ComponentType<{ classN
 const MAIN_NAV: NavItem[] = [
   { href: "/", label: "Painel", icon: LayoutDashboard },
   { href: "/clientes", label: "Clientes", icon: Building2 },
+  { href: "/tickets", label: "Tickets", icon: Ticket },
+  { href: "/notificacoes", label: "Avisos", icon: Bell },
 ];
 const ADMIN_NAV: NavItem[] = [{ href: "/equipe", label: "Equipe", icon: UsersRound }];
+const MANAGER_NAV: NavItem[] = [{ href: "/configuracoes", label: "Prazos e calendário", icon: Settings2 }];
 const ACCOUNT_NAV: NavItem[] = [{ href: "/conta", label: "Minha conta", icon: CircleUserRound }];
 
 // Módulos planejados: aparecem desativados para mostrar o que vem a seguir, sem fingir que existem
 const UPCOMING = [
-  { label: "Tickets e SLA", icon: Ticket, stage: "Etapa 3" },
   { label: "Documentos", icon: FileClock, stage: "Etapa 3" },
   { label: "WhatsApp", icon: MessageCircle, stage: "Etapa 4" },
   { label: "Sucesso do cliente", icon: CalendarClock, stage: "Etapa 5" },
@@ -38,11 +42,15 @@ const UPCOMING = [
 export function AppShell({
   user,
   isAdmin,
+  isManager,
+  unread,
   signOut,
   children,
 }: {
   user: { name: string; subtitle: string };
   isAdmin: boolean;
+  isManager: boolean;
+  unread: number;
   signOut: () => Promise<void>;
   children: React.ReactNode;
 }) {
@@ -60,10 +68,11 @@ export function AppShell({
   const nav = (
     <nav className="flex flex-col gap-1" aria-label="Principal">
       {MAIN_NAV.map((i) => <NavLink key={i.href} item={i} pathname={pathname} />)}
-      {isAdmin && (
+      {isManager && (
         <>
-          <SectionTitle>Administração</SectionTitle>
-          {ADMIN_NAV.map((i) => <NavLink key={i.href} item={i} pathname={pathname} />)}
+          <SectionTitle>Gestão</SectionTitle>
+          {isAdmin && ADMIN_NAV.map((i) => <NavLink key={i.href} item={i} pathname={pathname} />)}
+          {MANAGER_NAV.map((i) => <NavLink key={i.href} item={i} pathname={pathname} />)}
         </>
       )}
       <SectionTitle>Conta</SectionTitle>
@@ -122,6 +131,19 @@ export function AppShell({
           </button>
           <div className="md:hidden"><HagiousLogo markClassName="h-7 w-7" textClassName="text-base" /></div>
           <div className="ml-auto flex items-center gap-3">
+            <Link
+              href="/notificacoes"
+              className="relative rounded-xl p-2 text-muted transition hover:bg-surface-2 hover:text-ink"
+              aria-label={unread ? `Avisos: ${unread} não lido(s)` : "Avisos"}
+              title="Avisos"
+            >
+              <Bell className="h-5 w-5" />
+              {unread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b42318] px-1 text-[11px] font-bold text-white ring-2 ring-surface">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+            </Link>
             <Link href="/conta" className="group flex items-center gap-3 rounded-xl px-2 py-1 transition hover:bg-surface-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-extrabold text-white ring-2 ring-brand-100 transition group-hover:ring-brand-500">
                 {initials}
