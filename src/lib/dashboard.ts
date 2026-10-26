@@ -1,0 +1,149 @@
+import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
+import { OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
+
+type DB = SupabaseClient<Database>;
+type Dep = Database["public"]["Enums"]["department"];
+type Regime = Database["public"]["Enums"]["tax_regime"];
+
+const PAGE = 1000; // limite padrão de linhas por consulta no Supabase
+
+/** Busca todas as linhas em páginas de 1000 (o Supabase corta respostas maiores). */
+async function fetchAll<T>(query: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>) {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await query(from, from + PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE) return rows;
+  }
+}
+
+export type AttentionItem = { id: string; name: string; issues: string[] };
+
+/**
+ * Indicadores do painel. Como a consulta usa a sessão do usuário,
+ * as regras de acesso (RLS) valem: cada pessoa vê apenas os números dos clientes que pode acessar.
+ *
+ * Como cada número é calculado:
+ * - Clientes ativos: clientes com situação "ativo".
+ * - Novos (30 dias): clientes cadastrados no sistema nos últimos 30 dias (data de criação do registro).
+ * - WhatsApp autorizado: contatos com WhatsApp e autorização registrada / contatos com WhatsApp.
+ * - Cadastro completo: clientes ativos sem nenhuma pendência da lista "Precisa de atenção".
+ * - Por departamento: clientes ativos com ao menos um serviço ativo daquele departamento.
+ * - Por responsável: clientes ativos em que a pessoa é responsável em algum departamento.
+ */
+export async function loadDashboard(supabase: DB) {
+  const [clients, services, responsibles, contacts, people] = await Promise.all([
+    fetchAll((a, b) =>
+      supabase.from("clients").select("id, legal_name, status, tax_regime, created_at").order("id").range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase.from("client_services").select("client_id, department").eq("active", true).order("id").range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase.from("client_responsibles").select("client_id, department, user_id").order("client_id").range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase.from("client_contacts").select("client_id, whatsapp, whatsapp_opt_in, is_primary").order("id").range(a, b),
+    ),
+    supabase.from("profiles").select("id, full_name, active"),
+  ]);
+
+  const active = clients.filter((c) => c.status === "ativo");
+  const activeIds = new Set(active.map((c) => c.id));
+
+  // --- Departamentos e serviços ---
+  const depsByClient = new Map<string, Set<Dep>>();
+  for (const s of services) {
+    if (!depsByClient.has(s.client_id)) depsByClient.set(s.client_id, new Set());
+    depsByClient.get(s.client_id)!.add(s.department);
+  }
+  const byDepartment = OPERATIONAL_DEPARTMENTS.map((d) => ({
+    key: d,
+    value: active.filter((c) => depsByClient.get(c.id)?.has(d)).length,
+  }));
+
+  // --- Regime tributário ---
+  const regimeOrder: Regime[] = ["mei", "simples_nacional", "lucro_presumido", "lucro_real", "outro"];
+  const byRegime = regimeOrder.map((r) => ({ key: r, value: active.filter((c) => c.tax_regime === r).length }));
+
+  // --- Novos clientes por mês (últimos 6 meses, fuso de Brasília) ---
+  const monthKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
+  const now = new Date();
+  const months: { key: string; label: string; value: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 15);
+    months.push({
+      key: monthKey(d),
+      label: d.toLocaleDateString("pt-BR", { month: "short", timeZone: "America/Sao_Paulo" }).replace(".", ""),
+      value: 0,
+    });
+  }
+  for (const c of clients) {
+    const m = months.find((x) => x.key === monthKey(new Date(c.created_at)));
+    if (m) m.value++;
+  }
+  const since30 = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const new30 = clients.filter((c) => new Date(c.created_at).getTime() >= since30).length;
+
+  // --- Contatos e WhatsApp ---
+  const withWhats = contacts.filter((c) => c.whatsapp);
+  const optIn = withWhats.filter((c) => c.whatsapp_opt_in).length;
+  const contactsByClient = new Map<string, typeof contacts>();
+  for (const c of contacts) {
+    if (!contactsByClient.has(c.client_id)) contactsByClient.set(c.client_id, []);
+    contactsByClient.get(c.client_id)!.push(c);
+  }
+
+  // --- Responsáveis ---
+  const respByClient = new Map<string, Set<Dep>>();
+  const loadByUser = new Map<string, Set<string>>();
+  for (const r of responsibles) {
+    if (!respByClient.has(r.client_id)) respByClient.set(r.client_id, new Set());
+    respByClient.get(r.client_id)!.add(r.department);
+    if (activeIds.has(r.client_id)) {
+      if (!loadByUser.has(r.user_id)) loadByUser.set(r.user_id, new Set());
+      loadByUser.get(r.user_id)!.add(r.client_id);
+    }
+  }
+  const nameOf = new Map((people.data ?? []).map((p) => [p.id, p.full_name]));
+  const byResponsible = [...loadByUser.entries()]
+    .map(([id, set]) => ({ key: id, label: nameOf.get(id) ?? "Usuário", value: set.size }))
+    .sort((a, b) => b.value - a.value);
+
+  // --- Pendências de cadastro (somente clientes ativos) ---
+  const attention: AttentionItem[] = [];
+  for (const c of active) {
+    const issues: string[] = [];
+    const deps = depsByClient.get(c.id);
+    const resp = respByClient.get(c.id);
+    const cts = contactsByClient.get(c.id) ?? [];
+    if (!deps?.size) issues.push("Sem serviço ativo");
+    else if ([...deps].some((d) => !resp?.has(d))) issues.push("Departamento sem responsável");
+    if (!cts.some((x) => x.is_primary)) issues.push("Sem contato principal");
+    if (!cts.some((x) => x.whatsapp && x.whatsapp_opt_in)) issues.push("Sem WhatsApp autorizado");
+    if (issues.length) attention.push({ id: c.id, name: c.legal_name, issues });
+  }
+  attention.sort((a, b) => b.issues.length - a.issues.length || a.name.localeCompare(b.name));
+
+  return {
+    totals: {
+      clients: clients.length,
+      active: active.length,
+      suspended: clients.filter((c) => c.status === "suspenso").length,
+      new30,
+      contactsWithWhatsapp: withWhats.length,
+      whatsappOptIn: optIn,
+      complete: active.length - attention.length,
+    },
+    byDepartment,
+    byRegime,
+    months,
+    byResponsible,
+    attention,
+    clientNames: new Map(clients.map((c) => [c.id, c.legal_name])),
+    peopleNames: nameOf,
+  };
+}

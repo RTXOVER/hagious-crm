@@ -1,26 +1,147 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Paleta do CRM Hagious. Cores são "papéis" (ink, surface, link...) e não valores fixos:
+ * o tema escuro troca os valores das mesmas variáveis, sem mudar as telas.
+ */
+/* "static": emite todas as variáveis, mesmo as usadas só em CSS próprio ou no tema escuro */
+@theme static {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #10231f;          /* texto principal */
+  --color-muted: #5b6b67;        /* texto secundário */
+  --color-line: #e2e8e6;         /* bordas */
+  --color-canvas: #f3f6f5;       /* fundo da aplicação */
+  --color-surface: #ffffff;      /* cartões */
+  --color-surface-2: #f7faf9;    /* realce sutil (hover de linhas, blocos internos) */
+  --color-link: #135c47;
+
+  --color-brand-50: #ecf7f3;
+  --color-brand-100: #d2ede3;
+  --color-brand-500: #1f8a6a;
+  --color-brand-600: #187257;
+  --color-brand-700: #135c47;
+  --color-brand-900: #0b3328;    /* barra lateral */
+
+  /* Cor das barras dos gráficos (validada para contraste e daltonismo) */
+  --color-chart: #1f8a6a;
+  --color-chart-track: #e2e8e6;
+
+  /* Estados: texto e fundo suave */
+  --color-ok: #187257;
+  --color-ok-soft: #e7f5ef;
+  --color-warn: #8a5300;
+  --color-warn-soft: #fdf3e1;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-info: #1d5fa8;
+  --color-info-soft: #e8f1fb;
+  --color-neutral-soft: #eef2f1;
+
+  --shadow-lift: 0 6px 20px -8px rgb(16 35 31 / 0.25);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Tema escuro automático (segue a configuração do sistema operacional) */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: dark;
+    --color-ink: #e4ecea;
+    --color-muted: #9aaaa5;
+    --color-line: #26312e;
+    --color-canvas: #0d1211;
+    --color-surface: #151c1a;
+    --color-surface-2: #1b2421;
+    --color-link: #6fd3ae;
+
+    --color-brand-50: #12302a;
+    --color-brand-100: #1d4a3e;
+    --color-brand-500: #2fa17c;
+    --color-brand-600: #1f8a6a;
+    --color-brand-700: #187257;
+    --color-brand-900: #0a1e19;
+
+    --color-chart: #2fa17c;
+    --color-chart-track: #26312e;
+
+    --color-ok: #5fd0a8;
+    --color-ok-soft: #12302a;
+    --color-warn: #f2b65a;
+    --color-warn-soft: #33270f;
+    --color-danger: #f08a80;
+    --color-danger-soft: #3a1714;
+    --color-info: #8ab8f0;
+    --color-info-soft: #14253b;
+    --color-neutral-soft: #222b29;
+
+    --shadow-lift: 0 8px 24px -10px rgb(0 0 0 / 0.6);
   }
 }
 
+:root {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+/* Componentes reutilizáveis (no Tailwind 4, classes próprias usam @utility) */
+@utility card {
+  @apply rounded-2xl border border-line bg-surface;
+}
+/* Cartão clicável: destaca ao passar o mouse */
+@utility card-link {
+  @apply card block transition duration-150 hover:-translate-y-0.5 hover:border-brand-500 hover:shadow-(--shadow-lift) focus-visible:border-brand-500 focus-visible:outline-none;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-500 hover:shadow-(--shadow-lift);
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-surface text-ink hover:border-brand-500 hover:bg-surface-2;
+}
+@utility btn-danger {
+  @apply btn border border-danger/30 bg-surface text-danger hover:bg-danger-soft;
+}
+@utility input {
+  @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[15px] text-ink transition placeholder:text-muted/60 hover:border-muted/50 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none;
+}
+@utility label {
+  @apply mb-1 block text-sm font-semibold text-ink;
+}
+@utility field-error {
+  @apply mt-1 text-xs font-medium text-danger;
+}
+@utility link {
+  @apply font-semibold text-link underline-offset-2 hover:underline;
+}
+@utility table-base {
+  @apply w-full text-left text-sm;
+  & th {
+    @apply border-b border-line px-4 py-3 text-xs font-bold tracking-wide text-muted uppercase;
+  }
+  & td {
+    @apply border-b border-line px-4 py-3 align-top;
+  }
+  & tbody tr {
+    @apply transition-colors hover:bg-surface-2;
+  }
+  & tbody tr:last-child td {
+    @apply border-b-0;
+  }
+}
+
+/* Esqueleto de carregamento */
+@utility skeleton {
+  @apply animate-pulse rounded-lg bg-line/70;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
 }
