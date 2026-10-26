@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Search, X } from "lucide-react";
+import { Pencil, Plus, Search, X } from "lucide-react";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
@@ -54,6 +54,8 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
   // Perfil e lista em paralelo
   const [profile, result] = await Promise.all([requireProfile(), query]);
   const { count, error } = result;
+  // Editar o cadastro é permitido a gestores e administradores (o banco também impõe essa regra)
+  const canEdit = isManager(profile);
   const clients = (result.data ?? []) as unknown as {
     id: string; legal_name: string; trade_name: string | null; cnpj: string;
     tax_regime: keyof typeof TAX_REGIME_LABEL; status: (typeof STATUSES)[number]; is_demo: boolean;
@@ -135,7 +137,10 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
         <div className="card overflow-x-auto">
           <table className="table-base">
             <thead>
-              <tr><th>Cliente</th><th>CNPJ</th><th>Regime</th><th>Situação</th></tr>
+              <tr>
+                <th>Cliente</th><th>CNPJ</th><th>Regime</th><th>Situação</th>
+                {canEdit && <th className="text-right">Ações</th>}
+              </tr>
             </thead>
             <tbody>
               {clients.map((c) => (
@@ -148,6 +153,17 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
                   <td className="whitespace-nowrap tabular-nums">{formatCnpj(c.cnpj)}</td>
                   <td>{TAX_REGIME_LABEL[c.tax_regime]}</td>
                   <td><Badge tone={CLIENT_STATUS_TONE[c.status]}>{CLIENT_STATUS_LABEL[c.status]}</Badge></td>
+                  {canEdit && (
+                    <td className="text-right">
+                      <Link
+                        href={`/clientes/${c.id}/editar`}
+                        className="btn-secondary px-3 py-1.5 text-xs"
+                        aria-label={`Editar ${c.legal_name}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" /> Editar
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -16,6 +16,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import { HagiousLogo } from "@/components/logo";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -119,7 +120,7 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="md:hidden"><span className="font-extrabold">CRM Hagious</span></div>
+          <div className="md:hidden"><HagiousLogo markClassName="h-7 w-7" textClassName="text-base" /></div>
           <div className="ml-auto flex items-center gap-3">
             <Link href="/conta" className="group flex items-center gap-3 rounded-xl px-2 py-1 transition hover:bg-surface-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-extrabold text-white ring-2 ring-brand-100 transition group-hover:ring-brand-500">
@@ -146,13 +147,9 @@ export function AppShell({
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2 px-2">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-lg font-extrabold">H</span>
-      <span className="leading-tight">
-        <span className="block text-base font-extrabold tracking-tight">Hagious</span>
-        <span className="block text-[11px] font-semibold tracking-wide text-white/60 uppercase">CRM contábil</span>
-      </span>
-    </div>
+    <Link href="/" className="block px-2" aria-label="Hagious — ir para o painel">
+      <HagiousLogo />
+    </Link>
   );
 }
 

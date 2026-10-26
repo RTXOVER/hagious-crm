@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { getCurrentProfile } from "@/lib/auth";
 import { LoginForm } from "./login-form";
+import { HagiousLogo } from "@/components/logo";
 
 export const metadata: Metadata = { title: "Entrar" };
 
@@ -25,9 +26,8 @@ export default async function LoginPage(props: PageProps<"/login">) {
           className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-brand-500/30 blur-3xl"
         />
         <div aria-hidden className="pointer-events-none absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-[#6fd3ae]/15 blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-xl font-extrabold">H</span>
-          <span className="text-lg font-extrabold">Hagious</span>
+        <div className="relative">
+          <HagiousLogo markClassName="h-11 w-11" textClassName="text-xl" />
         </div>
         <div className="relative max-w-md">
           <h2 className="text-4xl leading-tight font-extrabold tracking-tight">
@@ -48,8 +48,8 @@ export default async function LoginPage(props: PageProps<"/login">) {
       <section className="flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
           <div className="mb-8">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-900 text-lg font-extrabold text-white lg:hidden">
-              H
+            <div className="mb-5 lg:hidden">
+              <HagiousLogo markClassName="h-11 w-11" textClassName="text-xl" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight">Entrar</h1>
             <p className="mt-1 text-sm text-muted">Use o e-mail e a senha fornecidos pelo administrador.</p>
