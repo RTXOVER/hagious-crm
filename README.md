@@ -10,7 +10,8 @@ Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendi
 |---|---|---|
 | 1. Base | Banco, login, perfis, permissões, auditoria | Código pronto; **aguardando banco conectado para teste real** |
 | 2. Clientes | Cadastro, contatos, serviços, responsáveis, histórico | Código pronto; **aguardando banco conectado para teste real** |
-| 3. Operação | Tickets, SLA, encaminhamentos, documentos | Não iniciado |
+| 3. Operação | Tickets, SLA, encaminhamentos | Código pronto e testado em banco local; **aguardando aplicação no Supabase** |
+| 3. Operação | Controle de documentos | Não iniciado |
 | 4. Integrações | WhatsApp oficial (Cloud API), lembretes, escalonamento | Não iniciado |
 | 5. Gestão | Dashboard e validação final | Não iniciado |
 
@@ -47,6 +48,16 @@ Requer o WSL instalado (PowerShell como administrador: `wsl --install`, depois r
 npx supabase start          # sobe o banco local e aplica as migrações
 npx supabase status -o env  # mostra URL e chaves para o .env.local
 ```
+
+### Aplicar migrações (estrutura do banco)
+
+As migrações ficam em `supabase/migrations/`. Para aplicá-las pelo terminal:
+
+1. No painel do Supabase, clique em **Connect** → aba **Connection String** → **Session pooler** e copie o endereço (`postgresql://postgres.xxxx:[YOUR-PASSWORD]@...pooler.supabase.com:5432/postgres`).
+2. Troque `[YOUR-PASSWORD]` pela senha do banco definida na criação do projeto e cole no `.env.local` como `SUPABASE_DB_URL=...`.
+3. Rode `npm run db:migrate` (ou `npm run db:migrate -- --status` para só consultar).
+
+Cada migração roda uma única vez e por inteiro (se falhar, nada dela fica aplicado).
 
 ### Depois (as duas opções)
 
