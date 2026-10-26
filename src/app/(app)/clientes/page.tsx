@@ -7,6 +7,8 @@ import { PageHeader, Badge, Alert } from "@/components/page-header";
 import { CLIENT_STATUS_LABEL, CLIENT_STATUS_TONE, DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS, TAX_REGIME_LABEL } from "@/lib/labels";
 import { formatCnpj, onlyDigits } from "@/lib/validation/cnpj";
 import { daysAgoIso } from "@/lib/dates";
+import { deleteClientAction } from "./actions";
+import { DeleteClientButton } from "./[id]/client-admin-actions";
 
 export const metadata: Metadata = { title: "Clientes" };
 
@@ -56,6 +58,8 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
   const { count, error } = result;
   // Editar o cadastro é permitido a gestores e administradores (o banco também impõe essa regra)
   const canEdit = isManager(profile);
+  // Excluir: somente administradores
+  const isAdminUser = profile.role === "admin";
   const clients = (result.data ?? []) as unknown as {
     id: string; legal_name: string; trade_name: string | null; cnpj: string;
     tax_regime: keyof typeof TAX_REGIME_LABEL; status: (typeof STATUSES)[number]; is_demo: boolean;
@@ -154,14 +158,19 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
                   <td>{TAX_REGIME_LABEL[c.tax_regime]}</td>
                   <td><Badge tone={CLIENT_STATUS_TONE[c.status]}>{CLIENT_STATUS_LABEL[c.status]}</Badge></td>
                   {canEdit && (
-                    <td className="text-right">
-                      <Link
-                        href={`/clientes/${c.id}/editar`}
-                        className="btn-secondary px-3 py-1.5 text-xs"
-                        aria-label={`Editar ${c.legal_name}`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" /> Editar
-                      </Link>
+                    <td>
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/clientes/${c.id}/editar`}
+                          className="btn-secondary px-3 py-1.5 text-xs"
+                          aria-label={`Editar ${c.legal_name}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" /> Editar
+                        </Link>
+                        {isAdminUser && (
+                          <DeleteClientButton compact clientName={c.legal_name} action={deleteClientAction.bind(null, c.id)} />
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

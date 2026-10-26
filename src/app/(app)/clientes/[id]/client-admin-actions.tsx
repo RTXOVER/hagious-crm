@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useId, useRef, useState, useTransition } from "react";
 import { AlertTriangle, CircleCheck, CirclePause, CircleX, LoaderCircle, Trash2, X } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
 import { Alert } from "@/components/page-header";
@@ -74,14 +74,22 @@ export function DeleteClientButton({
   clientName,
   counts,
   action,
+  compact = false,
 }: {
   clientName: string;
-  counts: { contacts: number; services: number; responsibles: number };
+  /** Quantidades exibidas na confirmação; sem elas, a janela lista os tipos de dado removidos. */
+  counts?: { contacts: number; services: number; responsibles: number };
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Versão menor, para linhas de tabela. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(action, {});
   const dialogRef = useRef<HTMLDialogElement>(null);
+  // Identificadores únicos: a lista pode ter várias janelas de exclusão na mesma página
+  const uid = useId();
+  const titleId = `${uid}-titulo`;
+  const confirmId = `${uid}-confirmar`;
 
   useEffect(() => {
     const d = dialogRef.current;
@@ -92,15 +100,20 @@ export function DeleteClientButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="btn-danger">
-        <Trash2 className="h-4 w-4" /> Excluir
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={compact ? "btn-danger px-3 py-1.5 text-xs" : "btn-danger"}
+        aria-label={`Excluir ${clientName}`}
+      >
+        <Trash2 className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} /> Excluir
       </button>
 
       <dialog
         ref={dialogRef}
         onClose={() => setOpen(false)}
         className="m-auto w-[min(32rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-0 text-ink shadow-(--shadow-lift) backdrop:bg-black/50 backdrop:backdrop-blur-sm"
-        aria-labelledby="excluir-titulo"
+        aria-labelledby={titleId}
       >
         <form action={formAction} className="p-6">
           <div className="flex items-start justify-between gap-3">
@@ -111,14 +124,20 @@ export function DeleteClientButton({
               <X className="h-5 w-5" />
             </button>
           </div>
-          <h2 id="excluir-titulo" className="mt-4 text-xl font-extrabold">Excluir cliente?</h2>
+          <h2 id={titleId} className="mt-4 text-xl font-extrabold">Excluir cliente?</h2>
           <p className="mt-1 text-sm text-muted">
             <strong className="text-ink">{clientName}</strong> será removido de forma <strong className="text-ink">permanente</strong>, junto com:
           </p>
-          <ul className="mt-3 space-y-1 rounded-xl bg-surface-2 p-4 text-sm">
-            <li>{counts.contacts} contato(s)</li>
-            <li>{counts.services} serviço(s) contratado(s)</li>
-            <li>{counts.responsibles} responsável(is) definido(s)</li>
+          <ul className="mt-3 space-y-1 rounded-xl bg-surface-2 p-4 text-left text-sm">
+            {counts ? (
+              <>
+                <li>{counts.contacts} contato(s)</li>
+                <li>{counts.services} serviço(s) contratado(s)</li>
+                <li>{counts.responsibles} responsável(is) definido(s)</li>
+              </>
+            ) : (
+              <li>Todos os contatos, serviços contratados e responsáveis deste cliente</li>
+            )}
           </ul>
           <div className="mt-4">
             <Alert tone="info">
@@ -127,8 +146,8 @@ export function DeleteClientButton({
             </Alert>
           </div>
 
-          <label htmlFor="confirm" className="label mt-5">Para confirmar, digite <strong>EXCLUIR</strong></label>
-          <input id="confirm" name="confirm" className="input" autoComplete="off" autoFocus />
+          <label htmlFor={confirmId} className="label mt-5">Para confirmar, digite <strong>EXCLUIR</strong></label>
+          <input id={confirmId} name="confirm" className="input" autoComplete="off" autoFocus />
           {state.errors?.confirm && <p className="field-error">{state.errors.confirm}</p>}
           {state.errors?._form && <div className="mt-3"><Alert tone="danger">{state.errors._form}</Alert></div>}
 
