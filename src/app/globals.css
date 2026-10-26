@@ -106,10 +106,6 @@ body {
 @utility btn-danger {
   @apply btn border border-danger/30 bg-surface text-danger hover:bg-danger-soft;
 }
-/* Ação destrutiva confirmada: vermelho escuro fixo, legível com texto branco nos dois temas */
-@utility btn-danger-solid {
-  @apply btn bg-[#b42318] text-white hover:bg-[#912018];
-}
 @utility input {
   @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[15px] text-ink transition placeholder:text-muted/60 hover:border-muted/50 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 focus:outline-none;
 }

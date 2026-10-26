@@ -335,7 +335,8 @@ export function DeleteMemberButton({
 
           <div className="mt-6 flex justify-end gap-2">
             <button type="button" onClick={() => setOpen(false)} className="btn-secondary">Cancelar</button>
-            <button type="submit" disabled={pending} className="btn-danger-solid">
+            {/* Vermelho escuro fixo: legível com texto branco nos temas claro e escuro */}
+            <button type="submit" disabled={pending} className="btn bg-[#b42318] text-white hover:bg-[#912018]">
               {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               {pending ? "Excluindo…" : "Excluir definitivamente"}
             </button>
