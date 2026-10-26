@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Plus, Search, X } from "lucide-react";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, Badge } from "@/components/page-header";
+import { PageHeader, Badge, Alert } from "@/components/page-header";
 import { CLIENT_STATUS_LABEL, CLIENT_STATUS_TONE, DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS, TAX_REGIME_LABEL } from "@/lib/labels";
 import { formatCnpj, onlyDigits } from "@/lib/validation/cnpj";
 import { daysAgoIso } from "@/lib/dates";
@@ -105,6 +105,10 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
         {novos && <input type="hidden" name="novos" value="30" />}
         <button className="btn-secondary" type="submit">Filtrar</button>
       </form>
+
+      {sp.excluido === "1" && (
+        <div className="mb-4"><Alert tone="ok">Cliente excluído. O registro da exclusão ficou no histórico de alterações.</Alert></div>
+      )}
 
       {activeFilters.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">

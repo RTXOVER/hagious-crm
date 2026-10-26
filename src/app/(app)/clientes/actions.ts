@@ -137,6 +137,51 @@ export async function updateClientAction(
   redirect(`/clientes/${clientId}`);
 }
 
+// ---------- Situação e exclusão ----------
+
+const STATUSES = ["ativo", "suspenso", "encerrado"] as const;
+
+/** Muda a situação do cliente (gestor ou admin). Fica registrado no histórico. */
+export async function setClientStatusAction(clientId: string, status: string): Promise<ActionState> {
+  await requireManager();
+  if (!isUuid(clientId)) return { errors: { _form: "Cliente inválido." } };
+  if (!(STATUSES as readonly string[]).includes(status)) return { errors: { _form: "Situação inválida." } };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("clients")
+    .update({ status: status as (typeof STATUSES)[number] })
+    .eq("id", clientId)
+    .select("id");
+  if (error) return dbError(error);
+  if (!data?.length) return { errors: { _form: "Cliente não encontrado ou sem permissão." } };
+
+  revalidatePath(`/clientes/${clientId}`);
+  revalidatePath("/clientes");
+  return { ok: true, message: "Situação atualizada." };
+}
+
+/**
+ * Exclui o cliente e, em cascata, contatos, serviços e responsáveis. Somente administradores.
+ * Exige digitar EXCLUIR. O histórico de alterações guarda o registro da exclusão (quem e quando).
+ */
+export async function deleteClientAction(clientId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const profile = await requireProfile();
+  if (profile.role !== "admin") return { errors: { _form: "Somente administradores podem excluir clientes." } };
+  if (!isUuid(clientId)) return { errors: { _form: "Cliente inválido." } };
+  if (String(formData.get("confirm") ?? "").trim().toUpperCase() !== "EXCLUIR") {
+    return { errors: { confirm: "Digite EXCLUIR para confirmar." } };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("clients").delete().eq("id", clientId).select("id");
+  if (error) return dbError(error);
+  if (!data?.length) return { errors: { _form: "Cliente não encontrado ou sem permissão." } };
+
+  revalidatePath("/clientes");
+  redirect("/clientes?excluido=1");
+}
+
 // ---------- Contatos ----------
 
 function readContact(formData: FormData) {

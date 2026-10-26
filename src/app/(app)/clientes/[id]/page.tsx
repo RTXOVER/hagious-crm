@@ -14,7 +14,15 @@ import {
 } from "@/lib/labels";
 import { formatCnpj, formatPhone } from "@/lib/validation/cnpj";
 import { isUuid } from "@/lib/validation/ids";
-import { addServiceAction, deleteContactAction, endServiceAction, saveResponsiblesAction } from "../actions";
+import {
+  addServiceAction,
+  deleteClientAction,
+  deleteContactAction,
+  endServiceAction,
+  saveResponsiblesAction,
+  setClientStatusAction,
+} from "../actions";
+import { DeleteClientButton, StatusControl } from "./client-admin-actions";
 import { AddServiceForm, ConfirmButton, ResponsiblesForm } from "./detail-forms";
 
 export const metadata: Metadata = { title: "Cliente" };
@@ -72,6 +80,17 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
         actions={
           <>
             <Link href="/clientes" className="btn-secondary">Voltar</Link>
+            {profile.role === "admin" && (
+              <DeleteClientButton
+                clientName={client.legal_name}
+                counts={{
+                  contacts: contacts.data?.length ?? 0,
+                  services: services.data?.length ?? 0,
+                  responsibles: responsibles.data?.length ?? 0,
+                }}
+                action={deleteClientAction.bind(null, id)}
+              />
+            )}
             {manager && <Link href={`/clientes/${id}/editar`} className="btn-primary">Editar</Link>}
           </>
         }
@@ -94,8 +113,12 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        <Badge tone={CLIENT_STATUS_TONE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
+      <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+        {manager ? (
+          <StatusControl current={client.status} action={setClientStatusAction.bind(null, id)} />
+        ) : (
+          <Badge tone={CLIENT_STATUS_TONE[client.status]}>{CLIENT_STATUS_LABEL[client.status]}</Badge>
+        )}
         <Badge>{TAX_REGIME_LABEL[client.tax_regime]}</Badge>
         {client.is_demo && <Badge tone="blue">Registro fictício</Badge>}
       </div>

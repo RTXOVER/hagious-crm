@@ -163,6 +163,34 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
     expect(forColab ?? []).toHaveLength(0);
   });
 
+  it("gestor muda a situação, mas só o administrador exclui", async () => {
+    const st = await users.gestor.client.from("clients").update({ status: "suspenso" }).eq("id", clientId).select("status");
+    expect(st.data?.[0]?.status).toBe("suspenso");
+    await users.gestor.client.from("clients").update({ status: "ativo" }).eq("id", clientId);
+
+    const byGestor = await users.gestor.client.from("clients").delete().eq("id", clientId).select("id");
+    expect(byGestor.data ?? []).toHaveLength(0);
+    const byColab = await users.fiscal.client.from("clients").delete().eq("id", clientId).select("id");
+    expect(byColab.data ?? []).toHaveLength(0);
+    const { data: still } = await service.from("clients").select("id").eq("id", clientId);
+    expect(still).toHaveLength(1);
+  });
+
+  it("administrador exclui cliente e os dados ligados a ele saem junto", async () => {
+    const { data: tmp } = await users.admin.client
+      .from("clients")
+      .insert({ legal_name: `Excluir Fictício ${tag}`, cnpj: fakeCnpj(), is_demo: true })
+      .select("id")
+      .single();
+    await users.admin.client.from("client_contacts").insert({ client_id: tmp!.id, name: "Contato a excluir" });
+    const del = await users.admin.client.from("clients").delete().eq("id", tmp!.id).select("id");
+    expect(del.data).toHaveLength(1);
+    const { data: orphan } = await service.from("client_contacts").select("id").eq("client_id", tmp!.id);
+    expect(orphan).toHaveLength(0);
+    await service.from("audit_log").delete()
+      .or(`record_id.eq.${tmp!.id},new_data->>client_id.eq.${tmp!.id},old_data->>client_id.eq.${tmp!.id}`);
+  });
+
   it("banco rejeita CNPJ inválido mesmo sem passar pela tela", async () => {
     const r = await users.gestor.client.from("clients").insert({ legal_name: "CNPJ ruim", cnpj: "11222333000100" });
     expect(r.error).not.toBeNull();
