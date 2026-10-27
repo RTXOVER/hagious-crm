@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   // Cache Components desativado: todas as telas dependem do usuário logado e das
   // permissões dele, então são renderizadas a cada acesso (dados sempre atuais).
   poweredByHeader: false,
+  // Modo de desenvolvimento: permite abrir de outro computador da mesma rede (pelo IP desta máquina)
+  allowedDevOrigins: ["192.168.100.131"],
   turbopack: {
     rules: {
       "*.css": {
