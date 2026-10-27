@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { FileClock, Mail, MessageCircle, MessagesSquare, Plus, Ticket } from "lucide-react";
-import { DOC_STATUS_LABEL, addDays, describeRule, dueState, todaySP } from "@/lib/documents";
+import { DOC_STATUS_LABEL, describeRule, dueState, todaySP } from "@/lib/documents";
 import { deleteRequirementAction, saveRequirementAction, setDocStatusAction, toggleRequirementAction } from "../../documentos/actions";
 import { QuickReceive, RequirementForm } from "../../documentos/doc-forms";
 import { OPEN_STATUSES, STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_TONE as TICKET_STATUS_TONE, slaState, ticketNumber } from "@/lib/tickets";
@@ -49,7 +49,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const supabase = await createClient();
   // Tudo em paralelo: cada consulta ao banco leva ~0,3 s. O histórico só retorna dados
   // para a gestão (regra do banco), então pode ser pedido sempre.
-  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes, saves, convs] = await Promise.all([
+  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes, saves, convs, doneDocs] = await Promise.all([
     requireProfile(),
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("client_contacts").select("*").eq("client_id", id).order("is_primary", { ascending: false }).order("name"),
@@ -80,12 +80,15 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
       .from("client_documents")
       .select("id, title, status, department, due_date, received_at")
       .eq("client_id", id)
+      .eq("status", "pendente") // todas as pendências (antes, clientes com muito histórico perdiam as atuais)
       .order("due_date", { ascending: true })
-      .limit(60),
+      .limit(200),
     supabase.from("document_types").select("id, name, department, default_periodicity, default_due_day, description").eq("active", true).order("name"),
     // Conversas: mensagens salvas no cliente e conversas ligadas a ele
     supabase.from("message_saves").select("*").eq("client_id", id).order("sent_at", { ascending: false }).limit(30),
     supabase.from("conversations").select("id, kind, contact_name, contact_address, last_message_at, unread_count").eq("client_id", id).order("last_message_at", { ascending: false }).limit(10),
+    // Encerrados mais recentes (recebidos/dispensados), à parte das pendências
+    supabase.from("client_documents").select("id, title, status, due_date").eq("client_id", id).neq("status", "pendente").order("due_date", { ascending: false }).limit(5),
   ]);
   // RLS: se a pessoa não tem acesso, o banco não devolve o registro -> 404
   if (!client) notFound();
@@ -100,13 +103,9 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const usableTypes = (docTypes.data ?? []).filter(
     (t) => t.department !== "atendimento" && canEditDep(t.department),
   ) as Parameters<typeof RequirementForm>[0]["types"];
-  const allDocs = docs.data ?? [];
-  const openDocs = allDocs.filter((d) => d.status === "pendente");
+  const openDocs = docs.data ?? [];
   const lateCount = openDocs.filter((d) => d.due_date < today).length;
-  const recentDone = allDocs
-    .filter((d) => d.status !== "pendente" && d.due_date >= addDays(today, -60))
-    .sort((a, b) => b.due_date.localeCompare(a.due_date))
-    .slice(0, 5);
+  const recentDone = doneDocs.data ?? [];
 
   return (
     <>
@@ -159,7 +158,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
         {client.is_demo && <Badge tone="blue">Registro fictício</Badge>}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <section className="card p-6" aria-labelledby="tickets-cliente">
             <div className="mb-4 flex items-center justify-between gap-2">

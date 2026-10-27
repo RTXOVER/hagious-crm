@@ -212,34 +212,23 @@ export async function saveContactAction(
   const supabase = await createClient();
   const input = parsed.data;
 
-  // Preserva a data original do consentimento; registra agora se for novo
-  let optInAt: string | null = null;
-  if (input.whatsapp_opt_in) {
-    if (contactId) {
-      const { data: current } = await supabase
-        .from("client_contacts")
-        .select("whatsapp_opt_in_at")
-        .eq("id", contactId)
-        .maybeSingle();
-      optInAt = current?.whatsapp_opt_in_at ?? new Date().toISOString();
-    } else {
-      optInAt = new Date().toISOString();
-    }
-  }
+  // A data do consentimento é registrada pelo banco (autorização nova ou número novo = agora; senão mantém).
+  // 1) Salva o contato (ainda sem marcar como principal) — se falhar, nada mais muda
+  const row = { ...input, is_primary: false, whatsapp_opt_in_at: input.whatsapp_opt_in ? new Date().toISOString() : null };
+  const saved = contactId
+    ? await supabase.from("client_contacts").update(row).eq("id", contactId).eq("client_id", clientId).select("id")
+    : await supabase.from("client_contacts").insert({ ...row, client_id: clientId }).select("id");
+  if (saved.error) return { ...dbError(saved.error), values };
+  const id = saved.data?.[0]?.id;
+  if (!id) return { errors: { _form: "Você não tem permissão para alterar este contato." }, values };
 
-  // Só pode haver um contato principal por cliente
+  // 2) Só então troca o principal (um por cliente): tira dos outros e marca este
   if (input.is_primary) {
-    let q = supabase.from("client_contacts").update({ is_primary: false }).eq("client_id", clientId).eq("is_primary", true);
-    if (contactId) q = q.neq("id", contactId);
-    const { error } = await q;
-    if (error) return dbError(error);
+    const demote = await supabase.from("client_contacts").update({ is_primary: false }).eq("client_id", clientId).eq("is_primary", true).neq("id", id);
+    if (demote.error) return { ...dbError(demote.error), values };
+    const promote = await supabase.from("client_contacts").update({ is_primary: true }).eq("id", id);
+    if (promote.error) return { ...dbError(promote.error), values };
   }
-
-  const row = { ...input, whatsapp_opt_in_at: optInAt };
-  const { error } = contactId
-    ? await supabase.from("client_contacts").update(row).eq("id", contactId).eq("client_id", clientId)
-    : await supabase.from("client_contacts").insert({ ...row, client_id: clientId });
-  if (error) return { ...dbError(error), values };
 
   revalidatePath(`/clientes/${clientId}`);
   redirect(`/clientes/${clientId}#contatos`);

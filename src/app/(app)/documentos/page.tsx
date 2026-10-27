@@ -116,7 +116,7 @@ export default async function DocumentsPage(props: PageProps<"/documentos">) {
         })}
       </nav>
 
-      <form className="card mb-4 flex flex-wrap items-center gap-2 p-3" role="search">
+      <form key={JSON.stringify(sp)} className="card mb-4 flex flex-wrap items-center gap-2 p-3" role="search">
         {view !== "pendentes" && <input type="hidden" name="visao" value={view} />}
         <div className="relative min-w-56 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
@@ -211,7 +211,7 @@ export default async function DocumentsPage(props: PageProps<"/documentos">) {
 
       <p className="mt-4 text-xs text-muted">
         {profile.role === "colaborador" ? "Você vê os documentos dos clientes que atende. " : ""}
-        Os lembretes são verificados a cada hora, dentro do expediente. Envio ao cliente pelo WhatsApp: Etapa 4.
+        Os lembretes são verificados a cada hora, dentro do expediente. O envio automático ao cliente pelo WhatsApp depende de um modelo de mensagem aprovado pela Meta.
       </p>
       {view === "todos" && <div className="mt-2"><Alert tone="info">“Todos” mostra os 200 vencimentos mais recentes.</Alert></div>}
     </>

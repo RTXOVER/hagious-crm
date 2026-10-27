@@ -62,14 +62,17 @@ type MessageStatus = "recebida" | "enviando" | "enviada" | "entregue" | "lida" |
 type ChannelAccountRow = {
   id: string; kind: ChannelKind; label: string; address: string | null; status: ChannelStatus; config: Json;
   last_sync_at: string | null; last_error: string | null; is_demo: boolean; connected_by: string | null;
-  created_at: string; updated_at: string;
+  sync_lock_until: string | null; created_at: string; updated_at: string;
 };
 type ChannelSecretRow = { account_id: string; ciphertext: string; updated_at: string };
 type ConversationRow = {
   id: string; account_id: string; kind: ChannelKind; contact_address: string; contact_name: string | null;
   client_id: string | null; contact_id: string | null; last_message_at: string | null; last_preview: string | null;
   last_inbound_at: string | null; unread_count: number; archived: boolean; is_demo: boolean; created_at: string; updated_at: string;
+  /** Somente e-mail: cliente | empresa | pessoa | separado (promoções e avisos automáticos) */
+  category: "cliente" | "empresa" | "pessoa" | "separado" | null;
 };
+type EmailSenderRuleRow = { pattern: string; category: "cliente" | "empresa" | "pessoa" | "separado"; created_by: string | null; created_at: string };
 type MessageRow = {
   id: string; conversation_id: string; account_id: string; direction: MessageDirection; external_id: string | null;
   kind: string; subject: string | null; body: string | null; media: Json | null; status: MessageStatus; error: string | null;
@@ -436,6 +439,7 @@ export type Database = {
         ]
       >;
       webhook_events: TableDef<WebhookEventRow, "source" | "payload" | "signature_ok">;
+      email_sender_rules: TableDef<EmailSenderRuleRow, "pattern" | "category">;
       // ---------- Etapa 3 (documentos) ----------
       document_settings: TableDef<DocumentSettingsRow, "id">;
       document_types: TableDef<DocumentTypeRow, "name" | "department">;
@@ -488,6 +492,7 @@ export type Database = {
         };
         Returns: string | null;
       };
+      channel_claim_sync: { Args: { p_account: string; p_min_interval_seconds: number }; Returns: boolean };
       channel_message_status: { Args: { p_account: string; p_external_id: string; p_status: MessageStatus; p_error?: string | null }; Returns: boolean };
     };
     Enums: {

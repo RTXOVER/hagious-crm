@@ -2,7 +2,8 @@
 
 /**
  * Seletor Hagious: substitui o <select> nativo com ícone/selo, linha secundária, selo "em breve",
- * busca opcional e navegação por teclado (setas, Home/End, Enter, Esc, digitar para buscar).
+ * busca opcional e navegação por teclado (setas, Home/End, Enter/Espaço, Esc, digitar para buscar).
+ * Padrão de acessibilidade "combobox de seleção" (WAI-ARIA APG).
  * Para formulários, grava o valor num <input type="hidden" name=...> — FormData continua funcionando.
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -45,6 +46,7 @@ type Props = {
 };
 
 const normalize = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const LIST_HEIGHT = 360; // altura máxima da lista (busca + itens)
 
 export function Select({
   options,
@@ -73,6 +75,7 @@ export function Select({
   const wrap = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const hidden = useRef<HTMLInputElement>(null);
+  const search = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const typed = useRef({ text: "", timer: 0 as unknown as ReturnType<typeof setTimeout> });
 
@@ -81,7 +84,11 @@ export function Select({
     return q ? options.filter((o) => normalize(`${o.label} ${o.hint ?? ""} ${o.badge ?? ""}`).includes(q)) : options;
   }, [options, query]);
   const selected = options.find((o) => o.value === current);
-  const enabled = (i: number) => i >= 0 && i < visible.length && !visible[i].disabled;
+  // Valor atual que não está entre as opções (ex.: pessoa desativada): mostra como indisponível, sem sumir
+  const orphan = !selected && current !== "";
+  const enabledIn = (list: SelectOption[], i: number) => i >= 0 && i < list.length && !list[i].disabled;
+  const enabled = (i: number) => enabledIn(visible, i);
+  const firstEnabled = (list: SelectOption[]) => list.findIndex((o) => !o.disabled);
   const step = (from: number, dir: 1 | -1) => {
     for (let i = from + dir; i >= 0 && i < visible.length; i += dir) if (enabled(i)) return i;
     return from;
@@ -96,6 +103,11 @@ export function Select({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
 
+  // Ao abrir com busca, o cursor vai direto para o campo (funciona pelo teclado)
+  useEffect(() => {
+    if (open && searchable) search.current?.focus();
+  }, [open, searchable]);
+
   useEffect(() => {
     if (open && active >= 0) listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
@@ -103,11 +115,16 @@ export function Select({
   function show() {
     if (disabled) return;
     const r = trigger.current!.getBoundingClientRect();
-    setUp(window.innerHeight - r.bottom < 300 && r.top > 300);
+    setUp(window.innerHeight - r.bottom < LIST_HEIGHT && r.top > LIST_HEIGHT);
     setQuery("");
     const idx = options.findIndex((o) => o.value === current);
-    setActive(idx >= 0 && !options[idx].disabled ? idx : options.findIndex((o) => !o.disabled));
+    setActive(enabledIn(options, idx) ? idx : firstEnabled(options));
     setOpen(true);
+  }
+
+  function close(focusTrigger = true) {
+    setOpen(false);
+    if (focusTrigger) trigger.current?.focus();
   }
 
   function choose(i: number) {
@@ -115,8 +132,7 @@ export function Select({
     const v = visible[i].value;
     const changed = v !== current;
     if (value === undefined) setInner(v);
-    setOpen(false);
-    trigger.current?.focus();
+    close();
     if (changed) {
       onChange?.(v);
       if (submitOnChange && hidden.current) {
@@ -128,6 +144,7 @@ export function Select({
 
   function onKey(e: React.KeyboardEvent) {
     const k = e.key;
+    const inSearch = e.target === search.current;
     if (!open) {
       if (["ArrowDown", "ArrowUp", "Enter", " "].includes(k)) {
         e.preventDefault();
@@ -137,10 +154,10 @@ export function Select({
     }
     if (k === "ArrowDown") { e.preventDefault(); setActive((a) => step(a, 1)); }
     else if (k === "ArrowUp") { e.preventDefault(); setActive((a) => step(a, -1)); }
-    else if (k === "Home") { e.preventDefault(); setActive(step(-1, 1)); }
-    else if (k === "End") { e.preventDefault(); setActive(step(visible.length, -1)); }
-    else if (k === "Enter") { e.preventDefault(); choose(active); }
-    else if (k === "Escape") { e.preventDefault(); setOpen(false); trigger.current?.focus(); }
+    else if (k === "Home" && !inSearch) { e.preventDefault(); setActive(step(-1, 1)); }
+    else if (k === "End" && !inSearch) { e.preventDefault(); setActive(step(visible.length, -1)); }
+    else if (k === "Enter" || (k === " " && !inSearch)) { e.preventDefault(); choose(active); }
+    else if (k === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } // não fecha a janela em volta
     else if (k === "Tab") setOpen(false);
     else if (!searchable && k.length === 1) {
       const t = typed.current;
@@ -154,6 +171,7 @@ export function Select({
 
   const pad = size === "sm" ? "px-3 py-2 text-sm" : "px-3 py-2.5 text-[15px]";
   const listId = `${baseId}-list`;
+  const activeId = open && active >= 0 ? `${baseId}-opt-${active}` : undefined;
 
   return (
     <div ref={wrap} className={`relative ${className}`} onKeyDown={onKey}>
@@ -162,13 +180,14 @@ export function Select({
         ref={trigger}
         id={baseId}
         type="button"
+        role="combobox"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
         aria-label={aria["aria-label"]}
-        aria-activedescendant={open && active >= 0 ? `${baseId}-opt-${active}` : undefined}
-        onClick={() => (open ? setOpen(false) : show())}
+        aria-activedescendant={searchable ? undefined : activeId}
+        onClick={() => (open ? close() : show())}
         className={`flex w-full items-center gap-3 rounded-xl border bg-surface text-left text-ink transition duration-150 hover:border-muted/50 hover:bg-surface-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${pad} ${
           open || invalid
             ? invalid
@@ -177,65 +196,79 @@ export function Select({
             : "border-line focus-visible:border-brand-500 focus-visible:ring-4 focus-visible:ring-brand-500/15"
         }`}
       >
-        {selected ? <OptionBody o={selected} chosen inTrigger /> : <span className="flex-1 truncate text-muted/80">{placeholder}</span>}
+        {selected ? (
+          <OptionBody o={selected} chosen inTrigger />
+        ) : orphan ? (
+          <span className="flex-1 truncate text-muted">Opção indisponível (inativa ou removida)</span>
+        ) : (
+          <span className="flex-1 truncate text-muted/80">{placeholder}</span>
+        )}
         <ChevronDown className={`h-4 w-4 shrink-0 transition duration-200 ${open ? "rotate-180 text-link" : "text-muted"}`} aria-hidden />
       </button>
 
-      <div
-        className={`absolute right-0 left-0 z-50 min-w-[14rem] rounded-xl border border-line bg-surface p-1.5 shadow-(--shadow-lift) transition duration-150 ${
-          up ? "bottom-[calc(100%+6px)] origin-bottom" : "top-[calc(100%+6px)] origin-top"
-        } ${open ? "visible scale-100 opacity-100" : "pointer-events-none invisible scale-[0.98] opacity-0"}`}
-      >
-        {searchable && (
-          <div className="relative mb-1.5">
-            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setActive(0);
-              }}
-              placeholder="Buscar…"
-              aria-label="Buscar opção"
-              className="w-full rounded-lg bg-surface-2 py-2 pr-3 pl-9 text-sm text-ink outline-none placeholder:text-muted/70"
-              autoFocus={open}
-              tabIndex={open ? 0 : -1}
-            />
-          </div>
-        )}
-        <ul ref={listRef} id={listId} role="listbox" aria-labelledby={baseId} className="max-h-72 overflow-auto">
-          {!visible.length && <li className="px-3 py-2.5 text-sm text-muted">Nada encontrado.</li>}
-          {visible.map((o, i) => {
-            const isSel = o.value === current;
-            const newGroup = o.group && o.group !== visible[i - 1]?.group;
-            return (
-              <li key={o.value} role="presentation">
-                {newGroup && <p className="px-2.5 pt-2 pb-1 text-[11px] font-bold tracking-wider text-muted uppercase">{o.group}</p>}
-                <div
-                  id={`${baseId}-opt-${i}`}
-                  data-i={i}
-                  role="option"
-                  aria-selected={isSel}
-                  aria-disabled={o.disabled || undefined}
-                  onPointerMove={() => enabled(i) && setActive(i)}
-                  onPointerDown={(e) => e.preventDefault()}
-                  onClick={() => choose(i)}
-                  className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm select-none ${
-                    o.disabled ? "cursor-not-allowed" : "cursor-pointer"
-                  } ${i === active && !o.disabled ? "bg-surface-2" : ""}`}
-                >
-                  <OptionBody o={o} chosen={isSel} />
-                  {o.tag ? (
-                    <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-warn uppercase">{o.tag}</span>
-                  ) : (
-                    <Check className={`h-4 w-4 shrink-0 text-link ${isSel ? "opacity-100" : "opacity-0"}`} aria-hidden />
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {open && (
+        <div
+          className={`hs-pop absolute right-0 left-0 z-50 min-w-[14rem] rounded-xl border border-line bg-surface p-1.5 shadow-(--shadow-lift) ${
+            up ? "bottom-[calc(100%+6px)] origin-bottom" : "top-[calc(100%+6px)] origin-top"
+          }`}
+        >
+          {searchable && (
+            <div className="relative mb-1.5">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                ref={search}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  const q = normalize(e.target.value.trim());
+                  const list = q ? options.filter((o) => normalize(`${o.label} ${o.hint ?? ""} ${o.badge ?? ""}`).includes(q)) : options;
+                  setActive(firstEnabled(list));
+                }}
+                placeholder="Buscar…"
+                role="combobox"
+                aria-label="Buscar opção"
+                aria-expanded
+                aria-controls={listId}
+                aria-autocomplete="list"
+                aria-activedescendant={activeId}
+                className="w-full rounded-lg bg-surface-2 py-2 pr-3 pl-9 text-sm text-ink outline-none placeholder:text-muted/70"
+              />
+            </div>
+          )}
+          <ul ref={listRef} id={listId} role="listbox" aria-labelledby={baseId} className="max-h-72 overflow-auto">
+            {!visible.length && <li role="presentation" className="px-3 py-2.5 text-sm text-muted">Nada encontrado.</li>}
+            {visible.map((o, i) => {
+              const isSel = o.value === current;
+              const newGroup = o.group && o.group !== visible[i - 1]?.group;
+              return (
+                <li key={o.value} role="presentation">
+                  {newGroup && <p aria-hidden className="px-2.5 pt-2 pb-1 text-[11px] font-bold tracking-wider text-muted uppercase">{o.group}</p>}
+                  <div
+                    id={`${baseId}-opt-${i}`}
+                    data-i={i}
+                    role="option"
+                    aria-selected={isSel}
+                    aria-disabled={o.disabled || undefined}
+                    onPointerMove={() => enabled(i) && setActive(i)}
+                    onPointerDown={(e) => e.preventDefault()}
+                    onClick={() => choose(i)}
+                    className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm select-none ${
+                      o.disabled ? "cursor-not-allowed" : "cursor-pointer"
+                    } ${i === active && !o.disabled ? "bg-surface-2" : ""}`}
+                  >
+                    <OptionBody o={o} chosen={isSel} />
+                    {o.tag ? (
+                      <span className="shrink-0 rounded-full bg-warn-soft px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-warn uppercase">{o.tag}</span>
+                    ) : (
+                      <Check className={`h-4 w-4 shrink-0 text-link ${isSel ? "opacity-100" : "opacity-0"}`} aria-hidden />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

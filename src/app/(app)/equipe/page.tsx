@@ -13,9 +13,10 @@ export const metadata: Metadata = { title: "Equipe" };
 const ROLE_TONE: Record<keyof typeof ROLE_LABEL, Tone> = { admin: "blue", gestor: "green", colaborador: "gray" };
 
 export default async function TeamPage(props: PageProps<"/equipe">) {
+  // Confere a permissão ANTES de buscar dados (quem não é administrador é redirecionado na hora)
+  const admin = await requireAdmin();
   const supabase = await createClient();
-  const [admin, { data: members }, { data: resp }, sp] = await Promise.all([
-    requireAdmin(),
+  const [{ data: members }, { data: resp }, sp] = await Promise.all([
     supabase.from("profiles").select("*").order("active", { ascending: false }).order("full_name"),
     supabase.from("client_responsibles").select("user_id"),
     props.searchParams,

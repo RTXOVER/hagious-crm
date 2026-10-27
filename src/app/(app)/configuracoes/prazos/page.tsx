@@ -52,7 +52,7 @@ export default async function SettingsPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <section className="card p-6" aria-labelledby="expediente">
           <h2 id="expediente" className="mb-1 flex items-center gap-2 text-lg font-extrabold">
             <Clock className="h-5 w-5 text-muted" /> Expediente {settings?.needs_review && <Badge tone="amber">a confirmar</Badge>}
@@ -102,7 +102,7 @@ export default async function SettingsPage() {
                   <td className="font-semibold">{c.name} {c.needs_review && <Badge tone="amber">a confirmar</Badge>}</td>
                   <td>{DEPARTMENT_LABEL[c.department]}</td>
                   <td>{formatSla(c.resolution_value, c.resolution_unit)}</td>
-                  <td>{c.first_response_minutes ? `${c.first_response_minutes / 60} h úteis` : <span className="text-muted">padrão</span>}</td>
+                  <td>{c.first_response_minutes ? `${f.number(c.first_response_minutes / 60)} h úteis` : <span className="text-muted">padrão</span>}</td>
                   <td>{c.active ? <Badge tone="green">Ativo</Badge> : <Badge>Inativo</Badge>}</td>
                   <td className="text-right">
                     <details className="inline-block text-left">
@@ -127,7 +127,7 @@ export default async function SettingsPage() {
         </div>
       </section>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         <section className="card p-6" aria-labelledby="lembretes-doc">
           <h2 id="lembretes-doc" className="mb-1 flex items-center gap-2 text-lg font-extrabold"><BellRing className="h-5 w-5 text-muted" /> Lembretes de documentos</h2>
           <p className="mb-4 text-sm text-muted">Quando avisar antes do vencimento. Documentos vencidos vão para o relatório crítico e a gestão é avisada.</p>

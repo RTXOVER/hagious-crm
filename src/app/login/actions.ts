@@ -8,7 +8,14 @@ import { clearPreferencesCookie, loadPreferencesFromDb, writePreferencesCookie }
 /** Aceita apenas caminhos internos, evitando redirecionamento para sites externos. */
 function safeNext(value: FormDataEntryValue | null): string {
   const v = typeof value === "string" ? value : "";
-  return v.startsWith("/") && !v.startsWith("//") && !v.startsWith("/\\") ? v : "/";
+  // Só caminhos deste site: rejeita "//", "/\" e caracteres de controle (ex.: "/\t/site.com" vira "//site.com")
+  if (!v.startsWith("/") || /[\u0000-\u001f\u007f\\]/.test(v)) return "/";
+  try {
+    const u = new URL(v, "http://crm.local");
+    return u.origin === "http://crm.local" ? `${u.pathname}${u.search}${u.hash}` : "/";
+  } catch {
+    return "/";
+  }
 }
 
 export async function signIn(_prev: ActionState, formData: FormData): Promise<ActionState> {

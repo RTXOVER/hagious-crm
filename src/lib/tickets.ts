@@ -65,7 +65,8 @@ export function slaState(t: Pick<TicketRow, "status" | "resolution_due_at" | "ri
   const due = t.resolution_due_at ? new Date(t.resolution_due_at) : null;
   if (t.status === "cancelado") return { key: "cancelado", label: "Cancelado", tone: "gray" };
   if (t.status === "concluido") {
-    const ok = !due || (t.resolved_at && new Date(t.resolved_at) <= due);
+    // Mesma regra do painel (dashboard.ts): sem prazo calculado conta como cumprido
+    const ok = !due || (!!t.resolved_at && new Date(t.resolved_at) <= due);
     return ok ? { key: "cumprido", label: "Prazo cumprido", tone: "green" } : { key: "descumprido", label: "Concluído com atraso", tone: "red" };
   }
   if (t.status === "aguardando_cliente") return { key: "pausado", label: "Prazo pausado", tone: "gray" };
@@ -82,11 +83,14 @@ export function firstResponseLate(t: Pick<TicketRow, "first_responded_at" | "fir
 /** "em 3 h", "há 2 dias" — tempo corrido até/desde a data (o prazo em si já considera dias úteis). */
 export function relativeTime(iso: string | null, now = new Date()): string {
   if (!iso) return "—";
-  const diff = new Date(iso).getTime() - now.getTime();
-  const abs = Math.abs(diff);
-  const min = Math.round(abs / 60000);
-  const text =
-    min < 60 ? `${min} min` : min < 60 * 48 ? `${Math.round(min / 60)} h` : `${Math.round(min / 1440)} dias`;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "—";
+  const diff = t - now.getTime();
+  const min = Math.round(Math.abs(diff) / 60000);
+  if (min < 1) return "agora";
+  const hours = Math.round(min / 60);
+  const days = Math.round(min / 1440);
+  const text = min < 60 ? `${min} min` : hours < 48 ? `${hours} h` : `${days} ${days === 1 ? "dia" : "dias"}`;
   return diff >= 0 ? `em ${text}` : `há ${text}`;
 }
 

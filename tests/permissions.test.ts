@@ -90,6 +90,12 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
     if (userIds.length) await service.from("audit_log").delete().eq("table_name", "profiles").in("record_id", userIds);
   });
 
+  /** Existe algum cliente que NÃO é fictício? (então é um banco com dados reais) */
+  const hasRealClients = async () => {
+    const { count } = await service.from("clients").select("id", { count: "exact", head: true }).eq("is_demo", false);
+    return (count ?? 0) > 0;
+  };
+
   const canSee = async (key: string) => {
     const { data } = await users[key].client.from("clients").select("id").eq("id", clientId);
     return (data?.length ?? 0) > 0;
@@ -198,8 +204,11 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
 
   it("perfil desativado perde o acesso imediatamente", async () => {
     await service.from("profiles").update({ active: false }).eq("id", users.atend.id);
-    expect(await canSee("atend")).toBe(false);
-    await service.from("profiles").update({ active: true }).eq("id", users.atend.id);
+    try {
+      expect(await canSee("atend")).toBe(false);
+    } finally {
+      await service.from("profiles").update({ active: true }).eq("id", users.atend.id);
+    }
   });
 
   // ---------------- Tickets ----------------
@@ -306,7 +315,9 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
       expect(reopenGestor.error).toBeNull();
     });
 
-    it("prazo vencido avisa responsável e gestão uma vez só", async () => {
+    it("prazo vencido avisa responsável e gestão uma vez só", async (ctx) => {
+      // As rotinas automáticas agem sobre TODOS os dados: só rodam num banco sem clientes reais
+      if (await hasRealClients()) return ctx.skip();
       // Ticket aberto há 10 dias (só a chave de serviço pode definir a data, como numa importação)
       const { data: old, error } = await service
         .from("tickets")
@@ -335,7 +346,8 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
       expect(t!.overdue_notified_at).not.toBeNull();
     });
 
-    it("documentos: exigência gera pendência, lembrete sai uma vez e recebimento encerra a cobrança", async () => {
+    it("documentos: exigência gera pendência, lembrete sai uma vez e recebimento encerra a cobrança", async (ctx) => {
+      if (await hasRealClients()) return ctx.skip();
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
       const due = new Date(`${today}T12:00:00Z`);
       due.setUTCDate(due.getUTCDate() + 5);

@@ -82,13 +82,13 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
         <Badge tone={sla.tone}>{sla.label}</Badge>
         <Badge>{DEPARTMENT_LABEL[t.department]}</Badge>
         {canEdit && open ? (
-          <PriorityControl current={t.priority} action={updatePriorityAction.bind(null, id)} />
+          <PriorityControl key={t.priority} current={t.priority} action={updatePriorityAction.bind(null, id)} />
         ) : (
           <Badge tone={PRIORITY_TONE[t.priority]}>Prioridade {PRIORITY_LABEL[t.priority]}</Badge>
         )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Coluna principal: descrição, histórico e comentários */}
         <div className="space-y-6 xl:col-span-2">
           {t.description && (
@@ -181,7 +181,7 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
                   <PauseCircle className="mt-0.5 h-4 w-4 text-muted" />
                   <span>
                     {t.sla_paused_at ? <>Pausado desde {f.dateTime(t.sla_paused_at)} (aguardando cliente). </> : null}
-                    {t.sla_paused_minutes > 0 && <>Já pausado por {Math.round(t.sla_paused_minutes / 6) / 10} h úteis; o prazo foi estendido.</>}
+                    {t.sla_paused_minutes > 0 && <>Já pausado por {f.number(t.sla_paused_minutes / 60, 1)} h úteis; o prazo foi estendido.</>}
                   </span>
                 </div>
               )}
@@ -192,13 +192,13 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
             <h2 id="responsavel" className="flex items-center gap-2 font-extrabold"><UserRound className="h-5 w-5 text-muted" /> Responsável</h2>
             <p className="text-sm">{t.assignee_id ? <b>{nameOf.get(t.assignee_id)}</b> : <span className="text-warn">Ninguém assumiu ainda</span>}</p>
             {canEdit && open && t.assignee_id !== profile.id && <TakeButton action={takeTicketAction.bind(null, id)} />}
-            {canEdit && open && <AssignPanel action={assignAction.bind(null, id)} current={t.assignee_id} people={active} />}
+            {canEdit && open && <AssignPanel key={t.assignee_id ?? ""} action={assignAction.bind(null, id)} current={t.assignee_id} people={active} />}
           </section>
 
           {canEdit && (
             <section className="card p-6" aria-labelledby="situacao">
               <h2 id="situacao" className="mb-4 font-extrabold">Situação</h2>
-              <StatusPanel current={t.status} action={setStatusAction.bind(null, id)} canReopen={manager} />
+              <StatusPanel key={t.status} current={t.status} action={setStatusAction.bind(null, id)} canReopen={manager} />
             </section>
           )}
 
@@ -206,7 +206,7 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
             <section className="card p-6" aria-labelledby="encaminhar">
               <h2 id="encaminhar" className="mb-1 flex items-center gap-2 font-extrabold"><ArrowRightLeft className="h-5 w-5 text-muted" /> Encaminhar</h2>
               <p className="mb-4 text-sm text-muted">Envia a outro departamento com motivo registrado. O prazo continua o mesmo.</p>
-              <ForwardPanel action={forwardAction.bind(null, id)} currentDepartment={t.department} people={active} />
+              <ForwardPanel key={t.department} action={forwardAction.bind(null, id)} currentDepartment={t.department} people={active} />
             </section>
           )}
           {!canEdit && (

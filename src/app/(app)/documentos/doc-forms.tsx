@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useMemo, useState, useTransition } from "react";
+import { startTransition, useActionState, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { Building2, CalendarClock, CheckCircle2, FileCheck2, LoaderCircle, Plus, RotateCcw, Save, Search, X } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
@@ -18,14 +18,24 @@ type Periodicity = (typeof PERIODICITIES)[number];
 type Person = { id: string; full_name: string; department: string | null };
 type DocType = { id: string; name: string; department: Dep; default_periodicity: Periodicity; default_due_day: number; description?: string | null };
 
-function useManualAction(action: Action) {
-  const [state, dispatch, pending] = useActionState(action, {});
+/** Envio manual (sem apagar o que foi digitado em caso de erro). Depois de salvar com sucesso,
+ *  'version' muda: formulários de CRIAR usam key={version} para voltar em branco. */
+function useManualAction(action: Action, onSuccess?: () => void) {
+  const [version, setVersion] = useState(0);
+  const [state, dispatch, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
+    const r = await action(prev, fd);
+    if (r.ok) {
+      setVersion((v) => v + 1);
+      onSuccess?.();
+    }
+    return r;
+  }, {});
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     startTransition(() => dispatch(fd));
   };
-  return { state, submit, pending, err: state.errors ?? {} };
+  return { state, submit, pending, err: state.errors ?? {}, version };
 }
 
 
@@ -179,13 +189,24 @@ export function RequirementForm({
   today: string;
   submitLabel: string;
 }) {
-  const { state, submit, pending, err } = useManualAction(action);
-  const v = state.ok ? undefined : state.values;
-  const [typeId, setTypeId] = useState(v?.document_type_id ?? initial?.document_type_id ?? "");
+  // Campos controlados: guardam o que foi digitado mesmo se o servidor recusar (o envio é manual)
+  const [typeId, setTypeId] = useState(initial?.document_type_id ?? "");
   const type = types.find((t) => t.id === typeId);
-  const [periodicity, setPeriodicity] = useState<Periodicity>((v?.periodicity as Periodicity) ?? initial?.periodicity ?? "mensal");
-  const [dueDay, setDueDay] = useState(String(v?.due_day ?? initial?.due_day ?? 10));
-  const [firstMonth, setFirstMonth] = useState(String(v?.first_month ?? initial?.first_month ?? 1));
+  const [periodicity, setPeriodicity] = useState<Periodicity>(initial?.periodicity ?? "mensal");
+  const [dueDay, setDueDay] = useState(String(initial?.due_day ?? 10));
+  const [firstMonth, setFirstMonth] = useState(String(initial?.first_month ?? 1));
+  const { state, submit, pending, err, version } = useManualAction(action, () => {
+    if (!initial) {
+      // Exigência criada: o formulário volta em branco (evita cadastrar duas vezes)
+      setTypeId("");
+      setPeriodicity("mensal");
+      setDueDay("10");
+      setFirstMonth("1");
+    }
+  });
+  const uid = useId().replace(/:/g, "");
+  const sfx = initial ? uid : "n"; // formulário novo mantém "n"; edições têm ids únicos
+  const v = state.ok ? undefined : state.values;
 
   function chooseType(id: string) {
     setTypeId(id);
@@ -199,11 +220,11 @@ export function RequirementForm({
   const preview = Number(dueDay) >= 1 && Number(dueDay) <= 31 ? describeRule(periodicity, Number(dueDay), periodicity === "mensal" ? null : Number(firstMonth)) : null;
 
   return (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate key={initial ? undefined : version}>
       <FormMessage state={state} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label htmlFor={`rq-type-${initial ? "e" : "n"}`} className="label">Documento</label>
+          {initial ? <p className="label">Documento</p> : <label htmlFor="rq-type-n" className="label">Documento</label>}
           {initial ? (
             <>
               <input type="hidden" name="document_type_id" value={typeId} />
@@ -228,13 +249,13 @@ export function RequirementForm({
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="label" htmlFor={`rq-day-${initial ? "e" : "n"}`}>Vence no dia</label>
-            <input id={`rq-day-${initial ? "e" : "n"}`} name="due_day" type="number" min={1} max={31} className="input" value={dueDay} onChange={(e) => setDueDay(e.target.value)} />
+            <label className="label" htmlFor={`rq-day-${sfx}`}>Vence no dia</label>
+            <input id={`rq-day-${sfx}`} name="due_day" type="number" min={1} max={31} className="input" value={dueDay} onChange={(e) => setDueDay(e.target.value)} />
           </div>
           {periodicity !== "mensal" && (
             <div>
-              <label className="label" htmlFor={`rq-mon-${initial ? "e" : "n"}`}>{periodicity === "anual" ? "Mês" : "A partir de"}</label>
-              <Select id={`rq-mon-${initial ? "e" : "n"}`} name="first_month" value={firstMonth} onChange={setFirstMonth}
+              <label className="label" htmlFor={`rq-mon-${sfx}`}>{periodicity === "anual" ? "Mês" : "A partir de"}</label>
+              <Select id={`rq-mon-${sfx}`} name="first_month" value={firstMonth} onChange={setFirstMonth}
                 options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m.charAt(0).toUpperCase() + m.slice(1), badge: String(i + 1).padStart(2, "0") }))} />
             </div>
           )}
@@ -243,25 +264,25 @@ export function RequirementForm({
         </div>
         {preview && <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm sm:col-span-2"><strong>Regra:</strong> {preview}. Dia 31 = último dia do mês.</p>}
         <div>
-          <label className="label" htmlFor={`rq-resp-${initial ? "e" : "n"}`}>Quem cobra (opcional)</label>
-          <Select id={`rq-resp-${initial ? "e" : "n"}`} name="responsible_id" defaultValue={v?.responsible_id ?? initial?.responsible_id ?? ""} searchable
+          <label className="label" htmlFor={`rq-resp-${sfx}`}>Quem cobra (opcional)</label>
+          <Select id={`rq-resp-${sfx}`} name="responsible_id" defaultValue={v?.responsible_id ?? initial?.responsible_id ?? ""} searchable
             options={peopleOptions(people, { empty: "Automático", emptyHint: "Responsável do cliente no departamento", department: type?.department })} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="label" htmlFor={`rq-start-${initial ? "e" : "n"}`}>Exigir a partir de</label>
-            <input id={`rq-start-${initial ? "e" : "n"}`} name="starts_on" type="date" className="input" defaultValue={v?.starts_on ?? initial?.starts_on ?? today} />
+            <label className="label" htmlFor={`rq-start-${sfx}`}>Exigir a partir de</label>
+            <input id={`rq-start-${sfx}`} name="starts_on" type="date" className="input" defaultValue={v?.starts_on ?? initial?.starts_on ?? today} />
             {err.starts_on && <p className="field-error">{err.starts_on}</p>}
           </div>
           <div>
-            <label className="label" htmlFor={`rq-end-${initial ? "e" : "n"}`}>Até (opcional)</label>
-            <input id={`rq-end-${initial ? "e" : "n"}`} name="ends_on" type="date" className="input" defaultValue={v?.ends_on ?? initial?.ends_on ?? ""} />
+            <label className="label" htmlFor={`rq-end-${sfx}`}>Até (opcional)</label>
+            <input id={`rq-end-${sfx}`} name="ends_on" type="date" className="input" defaultValue={v?.ends_on ?? initial?.ends_on ?? ""} />
             {err.ends_on && <p className="field-error">{err.ends_on}</p>}
           </div>
         </div>
         <div className="sm:col-span-2">
-          <label className="label" htmlFor={`rq-notes-${initial ? "e" : "n"}`}>Observações (opcional)</label>
-          <input id={`rq-notes-${initial ? "e" : "n"}`} name="notes" className="input" defaultValue={v?.notes ?? initial?.notes ?? ""} placeholder="Ex.: enviar extratos das contas Itaú e Nubank" />
+          <label className="label" htmlFor={`rq-notes-${sfx}`}>Observações (opcional)</label>
+          <input id={`rq-notes-${sfx}`} name="notes" className="input" defaultValue={v?.notes ?? initial?.notes ?? ""} placeholder="Ex.: enviar extratos das contas Itaú e Nubank" />
         </div>
       </div>
       <button className="btn-primary" disabled={pending}>
@@ -400,7 +421,7 @@ export function DocSettingsForm({ action, initial }: { action: Action; initial: 
     <form onSubmit={submit} className="space-y-4" noValidate>
       <FormMessage state={state} />
       <fieldset>
-        <legend className="label">Lembrar a equipe (e o cliente, na Etapa 4)</legend>
+        <legend className="label">Quando lembrar (a equipe; e o cliente pelo WhatsApp quando houver modelo aprovado)</legend>
         <div className="flex flex-wrap gap-2">
           {DAY_CHOICES.map((n) => {
             const on = days.includes(n);
@@ -430,14 +451,15 @@ export function DocSettingsForm({ action, initial }: { action: Action; initial: 
 type DocTypeInitial = { name: string; department: Dep; description: string | null; default_periodicity: Periodicity; default_due_day: number; active: boolean };
 
 export function DocTypeForm({ action, initial, submitLabel }: { action: Action; initial?: DocTypeInitial; submitLabel: string }) {
-  const { state, submit, pending, err } = useManualAction(action);
+  const { state, submit, pending, err, version } = useManualAction(action);
+  const uid = useId().replace(/:/g, "");
   return (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate key={initial ? undefined : version}>
       <FormMessage state={state} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="label">Nome do documento</label>
-          <input name="name" className="input" defaultValue={initial?.name} placeholder="Ex.: Comprovantes de pagamento" />
+          <label className="label" htmlFor={`dt-name-${uid}`}>Nome do documento</label>
+          <input id={`dt-name-${uid}`} name="name" className="input" defaultValue={initial?.name} placeholder="Ex.: Comprovantes de pagamento" />
           {err.name && <p className="field-error">{err.name}</p>}
         </div>
         <div>
@@ -451,14 +473,14 @@ export function DocTypeForm({ action, initial, submitLabel }: { action: Action; 
               options={PERIODICITIES.map((p) => ({ value: p, label: PERIODICITY_LABEL[p] }))} />
           </div>
           <div>
-            <label className="label">Dia padrão</label>
-            <input name="default_due_day" type="number" min={1} max={31} className="input" defaultValue={initial?.default_due_day ?? 10} />
+            <label className="label" htmlFor={`dt-day-${uid}`}>Dia padrão</label>
+            <input id={`dt-day-${uid}`} name="default_due_day" type="number" min={1} max={31} className="input" defaultValue={initial?.default_due_day ?? 10} />
             {err.default_due_day && <p className="field-error">{err.default_due_day}</p>}
           </div>
         </div>
         <div className="sm:col-span-2">
-          <label className="label">Descrição para a equipe (opcional)</label>
-          <input name="description" className="input" defaultValue={initial?.description ?? ""} placeholder="O que exatamente o cliente deve enviar" />
+          <label className="label" htmlFor={`dt-desc-${uid}`}>Descrição para a equipe (opcional)</label>
+          <input id={`dt-desc-${uid}`} name="description" className="input" defaultValue={initial?.description ?? ""} placeholder="O que exatamente o cliente deve enviar" />
         </div>
         {initial && (
           <div className="sm:col-span-2">

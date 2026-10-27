@@ -27,11 +27,12 @@ import {
 } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
 import { clientSchema, contactSchema, fieldErrors } from "@/lib/validation/schemas";
-import { isValidCnpj, onlyDigits } from "@/lib/validation/cnpj";
+import { isValidCnpj, normalizeCnpj } from "@/lib/validation/cnpj";
 import { CLIENT_STATUS_LABEL, DEPARTMENT_LABEL, TAX_REGIME_LABEL } from "@/lib/labels";
 import { Alert } from "@/components/page-header";
 import { ChoiceChips, IconField, Stepper, ToggleCard, maskCnpj, maskPhone } from "@/components/form-controls";
 import { Select } from "@/components/ui/select";
+import { useFormat } from "@/components/format-provider";
 import { peopleOptions } from "@/components/ui/options";
 import { createClientAction } from "../actions";
 import { lookupCnpjAction, type CnpjLookupResult } from "../cnpj-actions";
@@ -109,7 +110,7 @@ export function ClientWizard({ people }: { people: Person[] }) {
 
   // ---------- Consulta do CNPJ ----------
   async function runLookup(value: string) {
-    const digits = onlyDigits(value);
+    const digits = normalizeCnpj(value);
     if (!isValidCnpj(digits) || digits === lastLookup.current) return;
     lastLookup.current = digits;
     setLookup({ status: "loading" });
@@ -132,7 +133,7 @@ export function ClientWizard({ people }: { people: Person[] }) {
     const masked = maskCnpj(value);
     setCnpj(masked);
     setErrors((e) => ({ ...e, cnpj: "" }));
-    if (onlyDigits(masked).length === 14) {
+    if (normalizeCnpj(masked).length === 14) {
       if (!isValidCnpj(masked)) setErrors((e) => ({ ...e, cnpj: "CNPJ inválido (verifique os dígitos)" }));
       else void runLookup(masked);
     }
@@ -385,6 +386,7 @@ function StepTitle({ icon: Icon, title, subtitle }: { icon: React.ComponentType<
 }
 
 function LookupFeedback({ lookup }: { lookup: LookupState }) {
+  const f = useFormat();
   if (lookup.status === "idle") return null;
   if (lookup.status === "loading") {
     return (
@@ -419,7 +421,7 @@ function LookupFeedback({ lookup }: { lookup: LookupState }) {
       </p>
       <p className="mt-1 text-ink">{d.legal_name}</p>
       <p className="text-xs text-muted">
-        {[d.city, d.activity, d.opened_on && `aberta em ${d.opened_on.split("-").reverse().join("/")}`].filter(Boolean).join(" · ")}
+        {[d.city, d.activity, d.opened_on && `aberta em ${f.date(d.opened_on)}`].filter(Boolean).join(" · ")}
       </p>
     </div>
   );

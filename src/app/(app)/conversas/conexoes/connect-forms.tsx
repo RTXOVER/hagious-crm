@@ -175,7 +175,14 @@ export function WhatsAppConnectButton({
   useEffect(() => {
     // Dados da conta escolhida chegam por mensagem da janela da Meta (session logging)
     const onMessage = (e: MessageEvent) => {
-      if (!/(^|\.)facebook\.com$/.test(new URL(e.origin).hostname)) return;
+      // Só mensagens da própria Meta (origem "null" de outras janelas não pode quebrar a tela)
+      let host = "";
+      try {
+        host = new URL(e.origin).hostname;
+      } catch {
+        return;
+      }
+      if (!/(^|\.)facebook\.com$/.test(host)) return;
       try {
         const data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
         if (data?.type === "WA_EMBEDDED_SIGNUP") {

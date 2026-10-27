@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidCnpj, normalizeWhatsapp, onlyDigits } from "./cnpj";
+import { isValidCnpj, normalizeCnpj, normalizeWhatsapp } from "./cnpj";
 
 // Campo de texto opcional: string vazia vira null
 const optionalText = (max: number) =>
@@ -21,6 +21,10 @@ const optionalEmail = z
   .transform((v) => v ?? null)
   .refine((v) => v === null || z.email().safeParse(v).success, "E-mail inválido");
 
+/** AAAA-MM-DD que existe no calendário (recusa 31/02, mês 13...). */
+export const isRealDate = (v: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T12:00:00Z`)) && new Date(`${v}T12:00:00Z`).toISOString().slice(0, 10) === v;
+
 const optionalDate = z
   .string()
   .trim()
@@ -28,14 +32,14 @@ const optionalDate = z
   .nullable()
   .optional()
   .transform((v) => v ?? null)
-  .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), "Data inválida");
+  .refine((v) => v === null || isRealDate(v), "Data inválida");
 
 export const clientSchema = z.object({
   legal_name: z.string().trim().min(2, "Informe a razão social").max(200),
   trade_name: optionalText(200),
   cnpj: z
     .string()
-    .transform(onlyDigits)
+    .transform(normalizeCnpj)
     .refine(isValidCnpj, "CNPJ inválido (verifique os dígitos)"),
   tax_regime: z.enum(["mei", "simples_nacional", "lucro_presumido", "lucro_real", "outro"]),
   status: z.enum(["ativo", "suspenso", "encerrado"]),
@@ -85,7 +89,7 @@ export const serviceSchema = z.object({
 export const newUserSchema = z
   .object({
     full_name: z.string().trim().min(2, "Informe o nome").max(120),
-    email: z.email("E-mail inválido").transform((v) => v.toLowerCase()),
+    email: z.string().trim().toLowerCase().pipe(z.email("E-mail inválido")),
     role: z.enum(["admin", "gestor", "colaborador"]),
     department: z
       .enum(["contabil", "fiscal", "dp", "atendimento", ""])

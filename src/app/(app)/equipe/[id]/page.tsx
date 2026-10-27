@@ -14,9 +14,9 @@ export default async function EditMemberPage(props: PageProps<"/equipe/[id]">) {
   const { id } = await props.params;
   if (!isUuid(id)) notFound();
 
+  const admin = await requireAdmin(); // permissão antes de buscar dados
   const supabase = await createClient();
-  const [admin, { data: member }, { count: responsibilities }, { data: people }] = await Promise.all([
-    requireAdmin(),
+  const [{ data: member }, { count: responsibilities }, { data: people }] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", id).maybeSingle(),
     supabase.from("client_responsibles").select("user_id", { count: "exact", head: true }).eq("user_id", id),
     supabase.from("profiles").select("id, full_name").eq("active", true).neq("id", id).order("full_name"),
@@ -31,7 +31,7 @@ export default async function EditMemberPage(props: PageProps<"/equipe/[id]">) {
         description={member.full_name}
         actions={<Link href="/equipe" className="btn-secondary">Voltar para Equipe</Link>}
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,34rem)_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,34rem)_1fr]">
         <section className="card p-6">
           <EditMemberForm
             action={updateMemberAction.bind(null, id)}
@@ -51,7 +51,7 @@ export default async function EditMemberPage(props: PageProps<"/equipe/[id]">) {
             <h2 className="font-extrabold">Senha</h2>
             {isSelf ? (
               <p className="mt-1 text-sm text-muted">
-                Para trocar a sua senha, use <Link href="/conta" className="link">Minha conta</Link>.
+                Para trocar a sua senha, use <Link href="/configuracoes" className="link">Configurações → Conta</Link>.
               </p>
             ) : (
               <>

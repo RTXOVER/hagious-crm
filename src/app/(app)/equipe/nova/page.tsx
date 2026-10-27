@@ -17,7 +17,7 @@ export default async function NewMemberPage() {
         description="Crie o acesso de uma pessoa da equipe. Ela entra com o e-mail e a senha provisória gerada aqui."
         actions={<Link href="/equipe" className="btn-secondary">Voltar para Equipe</Link>}
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,32rem)_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,32rem)_1fr]">
         <section className="card p-6">
           <CreateUserForm action={createUserAction} />
         </section>

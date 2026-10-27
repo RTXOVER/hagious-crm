@@ -2,7 +2,7 @@
 
 import { requireManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { isValidCnpj, normalizeWhatsapp, onlyDigits } from "@/lib/validation/cnpj";
+import { isValidCnpj, normalizeCnpj, normalizeWhatsapp, onlyDigits } from "@/lib/validation/cnpj";
 
 /**
  * Consulta dados públicos do CNPJ na BrasilAPI (https://brasilapi.com.br), que reúne dados abertos da Receita Federal.
@@ -50,7 +50,7 @@ type BrasilApiCnpj = {
 
 export async function lookupCnpjAction(rawCnpj: string): Promise<CnpjLookupResult> {
   await requireManager();
-  const cnpj = onlyDigits(rawCnpj);
+  const cnpj = normalizeCnpj(rawCnpj);
   if (!isValidCnpj(cnpj)) return { ok: false, reason: "invalid" };
 
   // Já cadastrado? Evita duplicidade antes mesmo de consultar a Receita

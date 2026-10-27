@@ -5,7 +5,7 @@
  * etiquetas de escolha e de múltipla escolha, controle segmentado). Todos usam <input> de verdade por baixo,
  * então funcionam em formulários e com teclado/leitores de tela.
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Check } from "lucide-react";
 
 /** Caixa de marcar. */
@@ -128,6 +128,8 @@ export function Segmented<T extends string>({
   "aria-label": string;
   size?: "sm" | "md";
 }) {
+  const auto = useId();
+  const group = name ?? `seg${auto}`;
   return (
     <div role="radiogroup" aria-label={ariaLabel} className="inline-flex flex-wrap gap-1 rounded-xl border border-line bg-surface-2 p-1">
       {options.map((o) => {
@@ -139,7 +141,7 @@ export function Segmented<T extends string>({
               size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"
             } ${on ? "bg-brand-600 text-white shadow-sm" : "text-muted hover:bg-surface hover:text-ink"}`}
           >
-            <input type="radio" name={name} value={o.value} checked={on} onChange={() => onChange(o.value)} className="sr-only" />
+            <input type="radio" name={group} value={o.value} checked={on} onChange={() => onChange(o.value)} className="sr-only" />
             {o.label}
             {typeof o.count === "number" && (
               <span className={`rounded-full px-1.5 text-[11px] tabular-nums ${on ? "bg-white/25" : "bg-surface"}`}>{o.count}</span>
@@ -209,6 +211,8 @@ export function RadioCards<T extends string>({
   "aria-label": string;
   columns?: 1 | 2 | 3;
 }) {
+  const auto = useId();
+  const group = name ?? `rc${auto}`;
   const cols = { 1: "", 2: "sm:grid-cols-2", 3: "sm:grid-cols-3" }[columns];
   return (
     <div role="radiogroup" aria-label={ariaLabel} className={`grid gap-2.5 ${cols}`}>
@@ -221,7 +225,7 @@ export function RadioCards<T extends string>({
               o.disabled ? "cursor-not-allowed opacity-55" : "cursor-pointer"
             } ${on ? "border-brand-500 bg-brand-600 text-white shadow-(--shadow-lift)" : "border-line bg-surface hover:border-brand-500/60"}`}
           >
-            <input type="radio" name={name} value={o.value} checked={on} disabled={o.disabled} onChange={() => onChange(o.value)} className="sr-only" />
+            <input type="radio" name={group} value={o.value} checked={on} disabled={o.disabled} onChange={() => onChange(o.value)} className="sr-only" />
             <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 ${on ? "border-white bg-white text-brand-600" : "border-muted/50"}`}>
               {on && <Check className="h-3 w-3" strokeWidth={3.5} />}
             </span>

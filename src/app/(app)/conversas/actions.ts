@@ -30,9 +30,11 @@ export async function sendMessageAction(conversationId: string, _prev: ActionSta
   const text = String(formData.get("body") ?? "").trim();
   if (text.length < 1) return { errors: { body: "Escreva a mensagem." } };
   if (text.length > (conv.kind === "whatsapp" ? 4096 : 50_000)) return { errors: { body: "Mensagem muito longa." }, values: { body: text } };
-  if (conv.account?.status !== "conectado") return { errors: { _form: "Este canal está desconectado." }, values: { body: text } };
+  if (!conv.account || conv.account.status === "desconectado") return { errors: { _form: "Este canal está desconectado." }, values: { body: text } };
 
   const now = new Date().toISOString();
+  let subject: string | null = null;
+  let inReplyTo: string | null = null;
   if (conv.kind === "whatsapp") {
     // Regra da Meta: texto livre só até 24h depois da última mensagem do cliente
     if (!conv.last_inbound_at || Date.now() - Date.parse(conv.last_inbound_at) > WINDOW_MS) {
@@ -40,15 +42,6 @@ export async function sendMessageAction(conversationId: string, _prev: ActionSta
         errors: { _form: "Passaram mais de 24h desde a última mensagem do cliente. Pela regra do WhatsApp, só é possível enviar um modelo aprovado pela Meta (em breve) ou aguardar o cliente escrever." },
         values: { body: text },
       };
-    }
-    try {
-      const id = await sendWhatsAppText(conv.account_id, conv.contact_address, text);
-      await ingestMessage({ accountId: conv.account_id, direction: "saida", externalId: id, contact: conv.contact_address, kind: "text", body: text, status: "enviada", via: "crm", sentAt: now, sentBy: profile.id });
-    } catch (e) {
-      await ingestMessage({ accountId: conv.account_id, direction: "saida", externalId: null, contact: conv.contact_address, kind: "text", body: text, status: "falhou", via: "crm", sentAt: now, sentBy: profile.id });
-      const admin = createAdminClient();
-      await admin.from("messages").update({ error: String((e as Error).message).slice(0, 1000) }).eq("conversation_id", conv.id).eq("status", "falhou").is("error", null);
-      return { errors: { _form: `Não foi possível enviar: ${(e as Error).message}` } };
     }
   } else {
     const supabase = await createClient();
@@ -61,16 +54,52 @@ export async function sendMessageAction(conversationId: string, _prev: ActionSta
       .limit(1)
       .maybeSingle();
     const typed = String(formData.get("subject") ?? "").trim();
-    const subject = (typed || (last?.subject ? (/^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`) : "Mensagem da Hagious")).slice(0, 500);
-    try {
-      const id = await sendEmail(conv.account_id, { to: conv.contact_address, subject, text, inReplyTo: last?.external_id ?? null });
-      await ingestMessage({ accountId: conv.account_id, direction: "saida", externalId: id, contact: conv.contact_address, kind: "email", subject, body: text, status: "enviada", via: "crm", sentAt: now, sentBy: profile.id });
-    } catch (e) {
-      return { errors: { _form: explainEmailError(e) }, values: { body: text, subject } };
-    }
+    subject = (typed || (last?.subject ? (/^re:/i.test(last.subject) ? last.subject : `Re: ${last.subject}`) : "Mensagem da Hagious")).slice(0, 500);
+    inReplyTo = last?.external_id ?? null;
+  }
+
+  // 1) Registra ANTES como "enviando": se o envio falhar, a falha fica na mensagem certa;
+  //    se o envio der certo, nunca pedimos para a pessoa reenviar (evita mensagem duplicada ao cliente).
+  const admin = createAdminClient();
+  let pendingId: string | null = null;
+  try {
+    pendingId = await ingestMessage({
+      accountId: conv.account_id, direction: "saida", externalId: null, contact: conv.contact_address,
+      kind: conv.kind === "whatsapp" ? "text" : "email", subject, body: text, status: "enviando", via: "crm", sentAt: now, sentBy: profile.id,
+    });
+  } catch (e) {
+    console.error("[conversas] registrar envio", e);
+    return { errors: { _form: "Não foi possível registrar a mensagem. Nada foi enviado; tente de novo." }, values: { body: text } };
+  }
+
+  // 2) Envia pelo canal
+  let externalId: string;
+  try {
+    externalId = conv.kind === "whatsapp"
+      ? await sendWhatsAppText(conv.account_id, conv.contact_address, text)
+      : await sendEmail(conv.account_id, { to: conv.contact_address, subject: subject!, text, inReplyTo });
+  } catch (e) {
+    const reason = conv.kind === "email" ? explainEmailError(e) : `Não foi possível enviar: ${(e as Error).message}`;
+    if (pendingId) await admin.from("messages").update({ status: "falhou", error: reason.slice(0, 1000) }).eq("id", pendingId);
+    revalidatePath("/conversas");
+    return { errors: { _form: reason }, values: { body: text, ...(subject ? { subject } : {}) } };
+  }
+
+  // 3) Confirma o envio (se só esta etapa falhar, a mensagem JÁ saiu: avisamos sem pedir reenvio)
+  if (pendingId) {
+    const { error } = await admin.from("messages").update({ status: "enviada", external_id: externalId }).eq("id", pendingId).eq("status", "enviando");
+    if (error) console.error("[conversas] confirmar envio", error);
   }
   revalidatePath("/conversas");
   return { ok: true, message: "Enviada." };
+}
+
+/** Lista de clientes para os seletores (carregada só quando alguém abre o seletor; respeita as permissões). */
+export async function listClientsForPickerAction(): Promise<{ value: string; label: string; hint?: string }[]> {
+  await requireProfile();
+  const supabase = await createClient();
+  const { data } = await supabase.from("clients").select("id, legal_name, trade_name").neq("status", "encerrado").order("legal_name").limit(2000);
+  return (data ?? []).map((c) => ({ value: c.id, label: c.legal_name, hint: c.trade_name ?? undefined }));
 }
 
 export async function markReadAction(conversationId: string) {
@@ -109,24 +138,12 @@ export async function saveMessageAction(messageId: string, _prev: ActionState, f
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   if (!isUuid(messageId) || !isUuid(clientId)) return { errors: { client_id: "Escolha o cliente." } };
   const supabase = await createClient();
-  const { data: m } = await supabase
-    .from("messages")
-    .select("id, direction, subject, body, kind, sent_at, conversation:conversations(kind, contact_name, contact_address, account:channel_accounts(label))")
-    .eq("id", messageId)
-    .maybeSingle();
+  const { data: m } = await supabase.from("messages").select("id, direction, sent_at, conversation:conversations(kind)").eq("id", messageId).maybeSingle();
   if (!m?.conversation) return { errors: { _form: "Mensagem não encontrada." } };
-  const sender = m.direction === "entrada" ? m.conversation.contact_name || m.conversation.contact_address : m.conversation.account?.label ?? "Hagious";
+  // O banco copia o conteúdo da mensagem real (não dá para salvar um texto diferente do recebido)
   const { error } = await supabase.from("message_saves").insert({
-    message_id: m.id,
-    client_id: clientId,
-    channel: m.conversation.kind,
-    direction: m.direction,
-    sender,
-    subject: m.subject,
-    body: m.body ?? `[${m.kind}]`,
-    sent_at: m.sent_at,
-    note: note || null,
-    saved_by: profile.id,
+    message_id: m.id, client_id: clientId, channel: m.conversation.kind, direction: m.direction,
+    sent_at: m.sent_at, note: note || null, saved_by: profile.id,
   });
   if (error) {
     if (error.code === "23505") return { ok: true, message: "Esta mensagem já estava salva neste cliente." };
@@ -147,10 +164,14 @@ export async function receiveDocumentFromMessageAction(messageId: string, _prev:
   if (!doc) return { errors: { _form: "Documento não encontrado." } };
   const { data: m } = await supabase
     .from("messages")
-    .select("id, direction, subject, body, kind, sent_at, conversation:conversations(kind, contact_name, contact_address)")
+    .select("id, conversation:conversations(kind, client_id)")
     .eq("id", messageId)
     .maybeSingle();
   if (!m?.conversation) return { errors: { _form: "Mensagem não encontrada." } };
+  // A mensagem precisa ser de uma conversa do MESMO cliente do documento
+  if (m.conversation.client_id !== doc.client_id) {
+    return { errors: { _form: "Esta conversa não está ligada ao cliente deste documento. Ligue a conversa ao cliente primeiro." } };
+  }
   const channel = m.conversation.kind === "whatsapp" ? "WhatsApp" : "e-mail";
   const { data: upd, error } = await supabase
     .from("client_documents")
@@ -159,38 +180,62 @@ export async function receiveDocumentFromMessageAction(messageId: string, _prev:
     .eq("status", "pendente")
     .select("id");
   if (error || !upd?.length) return { errors: { _form: "Não foi possível registrar (o documento já foi recebido ou você não tem permissão)." } };
-  await supabase.from("message_saves").insert({
-    message_id: m.id,
-    client_id: doc.client_id,
-    channel: m.conversation.kind,
-    direction: m.direction,
-    sender: m.conversation.contact_name || m.conversation.contact_address,
-    subject: m.subject,
-    body: m.body ?? `[${m.kind}]`,
-    sent_at: m.sent_at,
-    note: `Comprovante de entrega: ${doc.title}`,
-    saved_by: profile.id,
+  // O banco copia o conteúdo da mensagem real (canal, texto, data); aqui só a referência e a observação
+  const { error: saveError } = await supabase.from("message_saves").insert({
+    message_id: m.id, client_id: doc.client_id, channel: m.conversation.kind, direction: "entrada",
+    sent_at: new Date().toISOString(), note: `Comprovante de entrega: ${doc.title}`, saved_by: profile.id,
   });
+  if (saveError && saveError.code !== "23505") console.error("[conversas] salvar comprovante", saveError);
   revalidatePath("/conversas");
   revalidatePath("/documentos");
   revalidatePath(`/clientes/${doc.client_id}`);
   return { ok: true, message: `“${doc.title}” marcado como recebido. Os lembretes pararam.` };
 }
 
-/** Busca e-mails novos agora (qualquer pessoa da equipe; no máximo uma vez a cada 30 s por caixa). */
+/**
+ * Busca e-mails novos agora (qualquer pessoa da equipe). A trava no banco garante uma busca por vez
+ * e no máximo uma a cada 30 s por caixa. Falha momentânea só registra o erro: a caixa continua ativa.
+ */
 export async function syncEmailNowAction(): Promise<ActionState> {
   await requireProfile();
   const admin = createAdminClient();
-  const { data: accounts } = await admin.from("channel_accounts").select("id, last_sync_at, is_demo").eq("kind", "email").eq("status", "conectado");
+  const { data: accounts } = await admin.from("channel_accounts").select("id, is_demo").eq("kind", "email").neq("status", "desconectado");
   let total = 0;
   for (const a of accounts ?? []) {
-    if (a.is_demo || (a.last_sync_at && Date.now() - Date.parse(a.last_sync_at) < 30_000)) continue;
+    if (a.is_demo) continue;
     try {
-      total += await syncEmailAccount(a.id);
+      total += (await syncEmailAccount(a.id)) ?? 0;
     } catch (e) {
-      await admin.from("channel_accounts").update({ last_error: explainEmailError(e), status: "erro" }).eq("id", a.id);
+      await admin.from("channel_accounts").update({ last_error: explainEmailError(e) }).eq("id", a.id);
     }
   }
   if (total) revalidatePath("/conversas");
   return { ok: true, message: total ? `${total} e-mail(s) novo(s).` : "Nenhum e-mail novo." };
+}
+
+const CATEGORIES = ["cliente", "empresa", "pessoa", "separado"] as const;
+
+/**
+ * Reclassifica um remetente de e-mail ("Não é promoção" / "Mover para Separados").
+ * Vale para esta conversa, para as outras do mesmo remetente (ou domínio) e para os próximos e-mails.
+ */
+export async function setEmailCategoryAction(conversationId: string, category: string, scope: "endereco" | "dominio"): Promise<ActionState> {
+  const profile = await requireProfile();
+  if (!isUuid(conversationId) || !(CATEGORIES as readonly string[]).includes(category)) return { errors: { _form: "Seleção inválida." } };
+  const supabase = await createClient();
+  const { data: conv } = await supabase.from("conversations").select("id, kind, contact_address").eq("id", conversationId).maybeSingle();
+  if (!conv || conv.kind !== "email") return { errors: { _form: "Conversa de e-mail não encontrada." } };
+  const domain = conv.contact_address.split("@")[1] ?? "";
+  if (scope === "dominio" && !domain) return { errors: { _form: "Endereço sem domínio." } };
+  const pattern = scope === "dominio" ? `@${domain}` : conv.contact_address;
+  const cat = category as (typeof CATEGORIES)[number];
+  const { error } = await supabase.from("email_sender_rules").upsert({ pattern, category: cat, created_by: profile.id }, { onConflict: "pattern" });
+  if (error) return { errors: { _form: "Somente a gestão e o atendimento podem reclassificar e-mails." } };
+  // Aplica agora às conversas do mesmo remetente/domínio
+  let upd = supabase.from("conversations").update({ category: cat }).eq("kind", "email");
+  upd = scope === "dominio" ? upd.ilike("contact_address", `%@${domain.replace(/[%_\\]/g, "\\$&")}`) : upd.eq("contact_address", conv.contact_address);
+  await upd;
+  revalidatePath("/conversas");
+  const label = { cliente: "Clientes", empresa: "Empresas", pessoa: "Pessoas", separado: "Separados" }[cat];
+  return { ok: true, message: `Movido para ${label}. Os próximos e-mails ${scope === "dominio" ? `de @${domain}` : "deste remetente"} também vão para lá.` };
 }

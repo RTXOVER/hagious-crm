@@ -54,7 +54,7 @@ export default async function ConnectionsPage() {
       />
       {!admin && <div className="mb-6"><Alert tone="info">Somente administradores conectam ou desconectam canais.</Alert></div>}
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* ---------------- WhatsApp ---------------- */}
         <section className="card p-6" aria-labelledby="wa-title">
           <div className="mb-4 flex items-start gap-3">

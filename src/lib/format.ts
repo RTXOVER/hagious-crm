@@ -28,17 +28,22 @@ export function makeFormatter(prefs: Preferences = DEFAULT_PREFERENCES) {
     const h12 = h % 12 === 0 ? 12 : h % 12;
     return `${h12}:${m} ${h < 12 ? "AM" : "PM"}`;
   };
+  /** Partes do instante no fuso escolhido; null se a data for inválida (nunca derruba a tela). */
   const parts = (iso: string) => {
-    const p = Object.fromEntries(partsFmt.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+    const t = new Date(iso);
+    if (Number.isNaN(t.getTime())) return null;
+    const p = Object.fromEntries(partsFmt.formatToParts(t).map((x) => [x.type, x.value]));
     return { y: p.year, m: p.month, d: p.day, h: Number(p.hour), min: p.minute };
   };
 
   /** Data pura AAAA-MM-DD (vencimentos, feriados). */
   const date = (d: string | null | undefined) => {
-    if (!d) return "—";
+    if (!d || !/^\d{4}-\d{2}-\d{2}/.test(d)) return "—";
     const [y, m, day] = d.slice(0, 10).split("-");
     return ymd(y, m, day);
   };
+  /** Só dia e mês, na ordem escolhida: "31/12", "12-31" ou "12/31". */
+  const dm = (m: string, d: string) => (prefs.date_format === "ymd" ? `${m}-${d}` : prefs.date_format === "mdy" ? `${m}/${d}` : `${d}/${m}`);
 
   return {
     prefs,
@@ -49,20 +54,26 @@ export function makeFormatter(prefs: Preferences = DEFAULT_PREFERENCES) {
     },
     /** Momento (timestamp) no fuso escolhido: "31/12/2026 14:30". */
     dateTime(iso: string | null | undefined) {
-      if (!iso) return "—";
-      const p = parts(iso);
-      return `${ymd(p.y, p.m, p.d)} ${hm(p.h, p.min)}`;
+      const p = iso ? parts(iso) : null;
+      return p ? `${ymd(p.y, p.m, p.d)} ${hm(p.h, p.min)}` : "—";
     },
     /** Só a data de um momento, no fuso escolhido. */
     dateOf(iso: string | null | undefined) {
-      if (!iso) return "—";
-      const p = parts(iso);
-      return ymd(p.y, p.m, p.d);
+      const p = iso ? parts(iso) : null;
+      return p ? ymd(p.y, p.m, p.d) : "—";
+    },
+    /** Dia e mês de um momento (listas compactas), no fuso e formato escolhidos. */
+    dayMonth(iso: string | null | undefined) {
+      const p = iso ? parts(iso) : null;
+      return p ? dm(p.m, p.d) : "—";
     },
     time(iso: string | null | undefined) {
-      if (!iso) return "—";
-      const p = parts(iso);
-      return hm(p.h, p.min);
+      const p = iso ? parts(iso) : null;
+      return p ? hm(p.h, p.min) : "—";
+    },
+    /** Número decimal no idioma (ex.: 1,5). */
+    number(value: number, digits = 2) {
+      return value.toLocaleString(prefs.language, { maximumFractionDigits: digits });
     },
     money(value: number | null | undefined) {
       return value === null || value === undefined ? "—" : money.format(value);

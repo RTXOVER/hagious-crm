@@ -140,7 +140,7 @@ export async function updateMemberAction(userId: string, _prev: ActionState, for
 export async function resetPasswordAction(userId: string): Promise<CreateUserState> {
   const admin = await requireAdmin();
   if (!isUuid(userId)) return { errors: { _form: "Usuário inválido." } };
-  if (userId === admin.id) return { errors: { _form: "Para a sua própria conta, use “Minha conta”." } };
+  if (userId === admin.id) return { errors: { _form: "Para a sua própria conta, use “Configurações → Conta”." } };
 
   const service = createAdminClient();
   const password = temporaryPassword();

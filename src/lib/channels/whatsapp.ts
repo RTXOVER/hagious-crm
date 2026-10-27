@@ -36,6 +36,7 @@ async function graphFetch<T>(path: string, init: RequestInit & { token?: string 
     ...init,
     headers: { "Content-Type": "application/json", ...(init.token ? { Authorization: `Bearer ${init.token}` } : {}), ...(init.headers ?? {}) },
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000), // a Meta travada não pode prender a tela
   });
   const body = (await res.json().catch(() => ({}))) as { error?: { message?: string; code?: number } } & T;
   if (!res.ok || body.error) {
@@ -57,6 +58,7 @@ export async function processWhatsAppPayload(payload: unknown) {
       .from("channel_accounts")
       .select("id, config")
       .eq("kind", "whatsapp")
+      .neq("status", "desconectado") // desconectado no CRM: para de receber
       .filter("config->>phone_number_id", "eq", ch.phoneNumberId)
       .maybeSingle();
     if (!account) continue; // número não conectado a este CRM
@@ -126,8 +128,9 @@ export async function completeEmbeddedSignup(opts: { code: string; wabaId: strin
     `${opts.wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
     { token: accessToken },
   );
-  const phone = numbers.data.find((n) => n.id === opts.phoneNumberId) ?? numbers.data[0];
-  if (!phone) throw new Error("Nenhum número encontrado nesta conta do WhatsApp.");
+  // Número escolhido na janela da Meta; só usa o primeiro da conta quando a janela não informou qual
+  const phone = opts.phoneNumberId ? numbers.data.find((n) => n.id === opts.phoneNumberId) : numbers.data[0];
+  if (!phone) throw new Error("O número escolhido não foi encontrado nesta conta do WhatsApp. Tente conectar de novo.");
 
   await graphFetch(`${opts.wabaId}/subscribed_apps`, { method: "POST", token: accessToken });
 

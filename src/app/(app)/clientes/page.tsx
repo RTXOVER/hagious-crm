@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Pencil, Plus, Search, X } from "lucide-react";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
 import { CLIENT_STATUS_LABEL, CLIENT_STATUS_TONE, DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS, TAX_REGIME_LABEL } from "@/lib/labels";
-import { formatCnpj, onlyDigits } from "@/lib/validation/cnpj";
+import { formatCnpj, normalizeCnpj } from "@/lib/validation/cnpj";
 import { daysAgoIso } from "@/lib/dates";
 import { deleteClientAction } from "./actions";
 import { DeleteClientButton } from "./[id]/client-admin-actions";
@@ -50,15 +51,20 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
   if (q) {
     // Remove caracteres com significado especial no filtro do PostgREST
     const safe = q.replace(/[,()*%\\:"]/g, " ").trim();
-    const digits = onlyDigits(q);
+    const code = normalizeCnpj(q); // CNPJ numérico ou alfanumérico, sem pontuação
     const filters = [`legal_name.ilike.%${safe}%`, `trade_name.ilike.%${safe}%`];
-    if (digits.length >= 3) filters.push(`cnpj.like.%${digits}%`);
+    if (code.length >= 3 && /\d/.test(code)) filters.push(`cnpj.like.%${code}%`);
     if (safe) query = query.or(filters.join(","));
   }
 
   // Perfil e lista em paralelo
   const [profile, result] = await Promise.all([requireProfile(), query]);
   const { count, error } = result;
+  // Página além da última (ex.: depois de filtrar): volta para a primeira em vez de mostrar erro
+  if (error?.code === "PGRST103" && page > 1) {
+    const back = new URLSearchParams(Object.entries(sp).filter(([k, v]) => k !== "pagina" && typeof v === "string") as [string, string][]);
+    redirect(back.toString() ? `/clientes?${back}` : "/clientes");
+  }
   // Editar o cadastro é permitido a gestores e administradores (o banco também impõe essa regra)
   const canEdit = isManager(profile);
   // Excluir: somente administradores
@@ -94,7 +100,7 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
         }
       />
 
-      <form className="card mb-4 flex flex-wrap items-center gap-2 p-3" role="search">
+      <form key={JSON.stringify(sp)} className="card mb-4 flex flex-wrap items-center gap-2 p-3" role="search">
         <div className="relative min-w-56 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
           <input name="q" defaultValue={q} placeholder="Buscar por razão social, nome fantasia ou CNPJ" className="input pl-9" aria-label="Buscar clientes" />

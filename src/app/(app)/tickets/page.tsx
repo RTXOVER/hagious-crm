@@ -27,6 +27,7 @@ const VIEWS = [
   { key: "meus", label: "Meus" },
   { key: "risco", label: "Em risco" },
   { key: "atrasados", label: "Atrasados" },
+  { key: "sem_responsavel", label: "Sem responsável" },
   { key: "encerrados", label: "Encerrados" },
 ] as const;
 type View = (typeof VIEWS)[number]["key"];
@@ -55,6 +56,7 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
   } else {
     query = query.in("status", [...OPEN_STATUSES]).order("resolution_due_at", { ascending: true });
     if (view === "meus") query = query.eq("assignee_id", profile.id);
+    if (view === "sem_responsavel") query = query.is("assignee_id", null);
     // Atrasado / em risco: mesmas regras dos alertas (tickets pausados não contam)
     if (view === "atrasados") query = query.neq("status", "aguardando_cliente").lt("resolution_due_at", now);
     if (view === "risco") query = query.neq("status", "aguardando_cliente").lte("risk_at", now).gte("resolution_due_at", now);
@@ -99,7 +101,7 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
         ))}
       </nav>
 
-      <form className="card mb-4 flex flex-wrap items-center gap-2 p-3" role="search">
+      <form key={JSON.stringify(sp)} className="card mb-4 flex flex-wrap items-center gap-2 p-3" role="search">
         {view !== "abertos" && <input type="hidden" name="visao" value={view} />}
         <div className="relative min-w-56 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />

@@ -9,9 +9,15 @@ export function PasswordForm() {
   const err = state.errors ?? {};
 
   return (
-    <form action={action} className="card max-w-md space-y-4 self-start p-6">
+    // key: limpa os campos depois de trocar a senha com sucesso
+    <form action={action} key={state.ok ? "ok" : "form"} className="card max-w-md space-y-4 self-start p-6">
       <h2 className="text-lg font-extrabold">Trocar senha</h2>
       <FormMessage state={state} />
+      <div>
+        <label htmlFor="current" className="label">Senha atual</label>
+        <input id="current" name="current" type="password" autoComplete="current-password" className="input" />
+        {err.current && <p className="field-error">{err.current}</p>}
+      </div>
       <div>
         <label htmlFor="password" className="label">Nova senha</label>
         <input id="password" name="password" type="password" autoComplete="new-password" className="input" />

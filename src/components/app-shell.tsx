@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlarmClock,
   Bell,
@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { HagiousLogo } from "@/components/logo";
+import { NavigationFeedback } from "@/components/navigation-feedback";
 
 type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean };
 
@@ -57,6 +58,18 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const closeBtn = useRef<HTMLButtonElement>(null);
+
+  // Menu do celular: foco vai para dentro ao abrir e Esc fecha
+  useEffect(() => {
+    if (!open) return;
+    closeBtn.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const initials = user.name
     .split(" ")
@@ -108,7 +121,7 @@ export function AppShell({
           <aside className="relative h-full w-72 max-w-[85vw] overflow-y-auto bg-brand-900 px-3 py-5 text-white">
             <div className="flex items-center justify-between">
               <Logo />
-              <button onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-white/10" aria-label="Fechar menu">
+              <button ref={closeBtn} onClick={() => setOpen(false)} className="rounded-lg p-2 hover:bg-white/10" aria-label="Fechar menu">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -162,7 +175,8 @@ export function AppShell({
             </form>
           </div>
         </header>
-        <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+        <NavigationFeedback />
+        <main data-app-main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
     </div>
   );

@@ -43,7 +43,8 @@ export async function loadTicketStats(supabase: DB) {
   ]);
   if (all.error) return null;
   const done = closed.data ?? [];
-  const onTime = done.filter((t) => t.resolved_at && t.resolution_due_at && t.resolved_at <= t.resolution_due_at).length;
+  // Mesma regra da tela do ticket (slaState): sem prazo calculado conta como cumprido
+  const onTime = done.filter((t) => !t.resolution_due_at || (!!t.resolved_at && Date.parse(t.resolved_at) <= Date.parse(t.resolution_due_at))).length;
   return {
     open: all.count ?? 0,
     late: late.count ?? 0,
@@ -107,7 +108,7 @@ export async function loadDashboard(supabase: DB) {
       supabase.from("client_services").select("client_id, department").eq("active", true).order("id").range(a, b),
     ),
     fetchAll((a, b) =>
-      supabase.from("client_responsibles").select("client_id, department, user_id").order("client_id").range(a, b),
+      supabase.from("client_responsibles").select("client_id, department, user_id").order("client_id").order("department").range(a, b),
     ),
     fetchAll((a, b) =>
       supabase.from("client_contacts").select("client_id, whatsapp, whatsapp_opt_in, is_primary").order("id").range(a, b),
@@ -135,10 +136,11 @@ export async function loadDashboard(supabase: DB) {
 
   // --- Novos clientes por mês (últimos 6 meses, fuso de Brasília) ---
   const monthKey = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }).slice(0, 7);
-  const now = new Date();
+  // Mês atual pela data de Brasília (não pelo relógio do servidor, que pode estar em UTC)
+  const [spYear, spMonth] = monthKey(new Date()).split("-").map(Number);
   const months: { key: string; label: string; value: number }[] = [];
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 15);
+    const d = new Date(Date.UTC(spYear, spMonth - 1 - i, 15, 12));
     months.push({
       key: monthKey(d),
       label: d.toLocaleDateString("pt-BR", { month: "short", timeZone: "America/Sao_Paulo" }).replace(".", ""),

@@ -81,7 +81,7 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
         <span className="text-sm text-muted">Vencimento: <strong className="text-ink tabular-nums">{f.date(doc.due_date)}</strong></span>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <section className="card p-6" aria-labelledby="situacao">
             <h2 id="situacao" className="mb-4 flex items-center gap-2 text-lg font-extrabold"><FileText className="h-5 w-5 text-muted" /> Situação</h2>
@@ -121,7 +121,7 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
                         <td>{CHANNEL_LABEL[r.channel]}</td>
                         <td>
                           <Badge tone={REMINDER_STATUS_TONE[r.status]}>{REMINDER_STATUS_LABEL[r.status]}</Badge>
-                          {r.channel === "whatsapp" && r.status === "na_fila" && <p className="mt-0.5 text-xs text-muted">Envio automático na Etapa 4</p>}
+                          {r.channel === "whatsapp" && r.status === "na_fila" && <p className="mt-0.5 text-xs text-muted">Aguardando modelo de mensagem aprovado pela Meta</p>}
                           {r.last_error && <p className="mt-0.5 text-xs text-muted">{r.last_error}</p>}
                           {r.attempts > 1 && <p className="text-xs text-muted">{r.attempts} tentativas</p>}
                         </td>

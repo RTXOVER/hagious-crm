@@ -66,8 +66,12 @@ export function CreateUserForm({
               type="button"
               className="btn-secondary"
               onClick={async () => {
-                await navigator.clipboard.writeText(state.tempPassword!);
-                setCopied(true);
+                try {
+                  await navigator.clipboard.writeText(state.tempPassword!);
+                  setCopied(true);
+                } catch {
+                  setCopied(false); // sem permissão de área de transferência: a senha continua visível para copiar à mão
+                }
               }}
             >
               {copied ? <CircleCheck className="h-4 w-4 text-ok" /> : <Copy className="h-4 w-4" />}
@@ -75,7 +79,7 @@ export function CreateUserForm({
             </button>
           </div>
           <p className="mt-3 text-xs text-muted">
-            Entregue pessoalmente ou por um canal seguro. No primeiro acesso, a pessoa deve trocar a senha em “Minha conta”.
+            Entregue pessoalmente ou por um canal seguro. No primeiro acesso, a pessoa deve trocar a senha em “Configurações → Conta”.
           </p>
         </div>
         <div className="flex justify-center gap-2">
@@ -241,7 +245,7 @@ export function ResetPasswordButton({ action }: { action: () => Promise<CreateUs
             <button
               type="button"
               className="btn-secondary"
-              onClick={async () => { await navigator.clipboard.writeText(result.tempPassword!); setCopied(true); }}
+              onClick={async () => { try { await navigator.clipboard.writeText(result.tempPassword!); setCopied(true); } catch { setCopied(false); } }}
             >
               {copied ? <CircleCheck className="h-4 w-4 text-ok" /> : <Copy className="h-4 w-4" />}
               {copied ? "Copiada" : "Copiar"}
@@ -277,7 +281,11 @@ export function DeleteMemberButton({
   useEffect(() => {
     const d = dialogRef.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      // Cursor direto no campo de confirmação (autoFocus não age em janela fechada)
+      d.querySelector<HTMLInputElement>("input[name=confirm]")?.focus();
+    }
     if (!open && d.open) d.close();
   }, [open]);
 

@@ -94,7 +94,11 @@ export function DeleteClientButton({
   useEffect(() => {
     const d = dialogRef.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      // Cursor direto no campo de confirmação (autoFocus não age em janela fechada)
+      d.querySelector<HTMLInputElement>("input[name=confirm]")?.focus();
+    }
     if (!open && d.open) d.close();
   }, [open]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useMemo, useState } from "react";
+import { startTransition, useActionState, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, Clock, LoaderCircle, Search, Send, X } from "lucide-react";
 import { DEPARTMENT_LABEL } from "@/lib/labels";
@@ -39,6 +39,7 @@ export function TicketForm({
   const [categoryId, setCategoryId] = useState("");
   const [preview, setPreview] = useState<{ firstResponse: string; resolution: string } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const latestCategory = useRef("");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [origin, setOrigin] = useState<Origin>(initial?.origin ?? "whatsapp");
@@ -58,7 +59,11 @@ export function TicketForm({
     setCategoryId(id);
     setPreview(null);
     setLoadingPreview(true);
-    setPreview(await previewSlaAction(id));
+    latestCategory.current = id;
+    const result = await previewSlaAction(id);
+    // Cliques rápidos: só vale a resposta do ÚLTIMO tipo escolhido
+    if (latestCategory.current !== id) return;
+    setPreview(result);
     setLoadingPreview(false);
   }
 

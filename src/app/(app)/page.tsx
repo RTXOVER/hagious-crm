@@ -89,7 +89,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
             <Stat href="/tickets" icon={Ticket} label="Abertos" value={tk.open} note="Em andamento ou aguardando" />
             <Stat href="/tickets?visao=risco" icon={Clock} label="Em risco" value={tk.risk} note="Perto do vencimento" />
             <Stat href="/tickets?visao=atrasados" icon={AlertTriangle} label="Atrasados" value={tk.late} note={tk.late ? "Gestão já foi avisada" : "Nenhum atrasado"} />
-            <Stat href="/tickets" icon={UserX} label="Sem responsável" value={tk.unassigned} note="Na fila do departamento" />
+            <Stat href="/tickets?visao=sem_responsavel" icon={UserX} label="Sem responsável" value={tk.unassigned} note="Na fila do departamento" />
             <Stat href="/tickets?visao=encerrados" icon={CheckCircle2} label="Prazo cumprido (30 dias)" value={tk.onTime30}>
               <Meter value={tk.onTime30} total={tk.closed30} label="Tickets concluídos no prazo nos últimos 30 dias" />
             </Stat>
@@ -134,7 +134,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
             </Stat>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
             <Panel title="Clientes ativos por departamento" subtitle="Com ao menos um serviço ativo do departamento">
               <BarList
                 unit="clientes"
@@ -164,7 +164,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
             </Panel>
           </div>
 
-          <div className="mt-6 grid gap-6 xl:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
             {/* Pendências de cadastro */}
             <section id="atencao" className="card scroll-mt-24 p-6 xl:col-span-2" aria-labelledby="atencao-title">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

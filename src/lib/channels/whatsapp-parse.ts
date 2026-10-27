@@ -26,14 +26,10 @@ export type ParsedChange = { phoneNumberId: string | null; displayPhone: string 
 
 /** Confere a assinatura X-Hub-Signature-256 (HMAC-SHA256 do corpo exato com o App Secret), em tempo constante. */
 export function verifySignature(rawBody: string, header: string | null, appSecret: string): boolean {
-  if (!header?.startsWith("sha256=") || !appSecret) return false;
+  // Formato exato: "sha256=" + 64 caracteres hexadecimais (nada antes ou depois)
+  if (!header || !appSecret || !/^sha256=[0-9a-f]{64}$/i.test(header)) return false;
   const expected = createHmac("sha256", appSecret).update(rawBody, "utf8").digest();
-  let given: Buffer;
-  try {
-    given = Buffer.from(header.slice(7), "hex");
-  } catch {
-    return false;
-  }
+  const given = Buffer.from(header.slice(7), "hex");
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 

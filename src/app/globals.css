@@ -64,8 +64,8 @@
   --color-brand-50: #12302a;
   --color-brand-100: #1d4a3e;
   --color-brand-500: #2fa17c;
-  --color-brand-600: #1f8a6a;
-  --color-brand-700: #187257;
+  --color-brand-600: #187257;
+  --color-brand-700: #135c47;
   --color-brand-900: #0a1e19;
   --color-chart: #2fa17c;
   --color-chart-track: #26312e;
@@ -102,8 +102,8 @@ html[data-font="xl"] { font-size: 125%; }
     --color-brand-50: #12302a;
     --color-brand-100: #1d4a3e;
     --color-brand-500: #2fa17c;
-    --color-brand-600: #1f8a6a;
-    --color-brand-700: #187257;
+    --color-brand-600: #187257;
+    --color-brand-700: #135c47;
     --color-brand-900: #0a1e19;
 
     --color-chart: #2fa17c;
@@ -146,7 +146,7 @@ body {
   @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
 }
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-500 hover:shadow-(--shadow-lift);
+  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-(--shadow-lift);
 }
 @utility btn-secondary {
   @apply btn border border-line bg-surface text-ink hover:border-brand-500 hover:bg-surface-2;
@@ -187,7 +187,58 @@ body {
   @apply animate-pulse rounded-lg bg-line/70;
 }
 
+/* ---------- Troca de telas (components/navigation-feedback.tsx) ---------- */
+[data-app-main] {
+  transition: opacity 180ms ease, filter 180ms ease;
+}
+/* Enquanto a próxima tela carrega: leve desfoque, sem "corte seco" */
+[data-app-main][data-pending] {
+  opacity: 0.55;
+  filter: blur(2px) saturate(0.9);
+  pointer-events: none;
+}
+/* Barra de progresso no topo */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  height: 3px;
+  width: 0;
+  opacity: 0;
+  background: linear-gradient(90deg, var(--color-brand-500), #6fd3ae);
+  box-shadow: 0 0 10px rgb(47 161 124 / 0.6);
+  transition: width 200ms ease, opacity 300ms ease;
+}
+.nav-progress.is-active {
+  opacity: 1;
+  animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+@keyframes nav-progress {
+  0% { width: 0; }
+  10% { width: 35%; }
+  40% { width: 65%; }
+  100% { width: 92%; }
+}
+/* Listas suspensas e menus: aparecem com um leve zoom */
+.hs-pop {
+  animation: hs-pop 140ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes hs-pop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+/* Janelas (dialog): esmaecem e sobem levemente */
+dialog[open] {
+  animation: hs-dialog 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes hs-dialog {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  [data-app-main][data-pending] { filter: none; }
   *, *::before, *::after {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;

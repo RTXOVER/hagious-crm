@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useId, useState } from "react";
 import { LoaderCircle, Plus, Save } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
 import { FormMessage } from "@/components/page-header";
@@ -10,14 +10,20 @@ import { departmentOptions } from "@/components/ui/options";
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
+/** Envio manual; depois de salvar com sucesso 'version' muda (formulários de criar voltam em branco). */
 function useForm(action: Action) {
-  const [state, dispatch, pending] = useActionState(action, {});
+  const [version, setVersion] = useState(0);
+  const [state, dispatch, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
+    const r = await action(prev, fd);
+    if (r.ok) setVersion((v) => v + 1);
+    return r;
+  }, {});
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     startTransition(() => dispatch(fd));
   };
-  return { state, submit, pending, err: state.errors ?? {} };
+  return { state, submit, pending, err: state.errors ?? {}, version };
 }
 
 const DAYS = [
@@ -100,14 +106,15 @@ type Category = {
 };
 
 export function CategoryForm({ action, initial, submitLabel }: { action: Action; initial?: Category; submitLabel: string }) {
-  const { state, submit, pending, err } = useForm(action);
+  const { state, submit, pending, err, version } = useForm(action);
+  const uid = useId().replace(/:/g, "");
   return (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate key={initial ? undefined : version}>
       <FormMessage state={state} />
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="label">Nome do tipo</label>
-          <input name="name" className="input" defaultValue={initial?.name} placeholder="Ex.: Admissão de funcionário" />
+          <label className="label" htmlFor={`cat-name-${uid}`}>Nome do tipo</label>
+          <input id={`cat-name-${uid}`} name="name" className="input" defaultValue={initial?.name} placeholder="Ex.: Admissão de funcionário" />
           {err.name && <p className="field-error">{err.name}</p>}
         </div>
         <div>
@@ -124,8 +131,8 @@ export function CategoryForm({ action, initial, submitLabel }: { action: Action;
           {err.resolution_value && <p className="field-error">{err.resolution_value}</p>}
         </div>
         <div>
-          <label className="label">1ª resposta (horas úteis)</label>
-          <input name="first_response_hours" className="input" inputMode="decimal" placeholder="Usar o padrão"
+          <label className="label" htmlFor={`cat-fr-${uid}`}>1ª resposta (horas úteis)</label>
+          <input id={`cat-fr-${uid}`} name="first_response_hours" className="input" inputMode="decimal" placeholder="Usar o padrão"
             defaultValue={initial?.first_response_minutes ? String(initial.first_response_minutes / 60) : ""} />
           {err.first_response_hours && <p className="field-error">{err.first_response_hours}</p>}
         </div>
@@ -143,19 +150,19 @@ export function CategoryForm({ action, initial, submitLabel }: { action: Action;
 }
 
 export function HolidayForm({ action }: { action: Action }) {
-  const { state, submit, pending, err } = useForm(action);
+  const { state, submit, pending, err, version } = useForm(action);
   return (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate key={version}>
       <FormMessage state={state} />
       <div className="grid gap-3 sm:grid-cols-[10rem_1fr_10rem_auto] sm:items-end">
         <div>
-          <label className="label">Data</label>
-          <input name="day" type="date" className="input" />
+          <label className="label" htmlFor="hol-day">Data</label>
+          <input id="hol-day" name="day" type="date" className="input" />
           {err.day && <p className="field-error">{err.day}</p>}
         </div>
         <div>
-          <label className="label">Nome</label>
-          <input name="name" className="input" placeholder="Ex.: Aniversário da cidade" />
+          <label className="label" htmlFor="hol-name">Nome</label>
+          <input id="hol-name" name="name" className="input" placeholder="Ex.: Aniversário da cidade" />
           {err.name && <p className="field-error">{err.name}</p>}
         </div>
         <div>

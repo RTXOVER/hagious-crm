@@ -57,7 +57,7 @@ export async function connectEmailAction(_prev: ActionState, formData: FormData)
   }
 
   const admin = createAdminClient();
-  const { data: existing } = await admin.from("channel_accounts").select("id").eq("kind", "email").ilike("address", f.address).maybeSingle();
+  const { data: existing } = await admin.from("channel_accounts").select("id").eq("kind", "email").eq("address", f.address).maybeSingle();
   const row = { kind: "email" as const, label: f.label, address: f.address, status: "conectado" as const, config: cfg as unknown as Json, last_error: null, connected_by: profile.id };
   const { data: saved, error } = existing
     ? await admin.from("channel_accounts").update(row).eq("id", existing.id).select("id").single()
@@ -67,7 +67,7 @@ export async function connectEmailAction(_prev: ActionState, formData: FormData)
 
   let imported = 0;
   try {
-    imported = await syncEmailAccount(saved.id);
+    imported = (await syncEmailAccount(saved.id, { minIntervalMs: 0 })) ?? 0;
   } catch (e) {
     await admin.from("channel_accounts").update({ last_error: explainEmailError(e) }).eq("id", saved.id);
   }

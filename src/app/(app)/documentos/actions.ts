@@ -192,7 +192,7 @@ export async function toggleRequirementAction(clientId: string, requirementId: s
   await requireProfile();
   if (!isUuid(clientId) || !isUuid(requirementId)) return;
   const supabase = await createClient();
-  const { error } = await supabase.from("document_requirements").update({ active }).eq("id", requirementId);
+  const { error } = await supabase.from("document_requirements").update({ active }).eq("id", requirementId).eq("client_id", clientId);
   if (error) console.error("[documentos] exigência", error);
   refresh(clientId);
 }
@@ -201,7 +201,7 @@ export async function deleteRequirementAction(clientId: string, requirementId: s
   await requireProfile();
   if (!isUuid(clientId) || !isUuid(requirementId)) return;
   const supabase = await createClient();
-  const { error } = await supabase.from("document_requirements").delete().eq("id", requirementId);
+  const { error } = await supabase.from("document_requirements").delete().eq("id", requirementId).eq("client_id", clientId);
   if (error) console.error("[documentos] remover exigência", error);
   refresh(clientId);
 }

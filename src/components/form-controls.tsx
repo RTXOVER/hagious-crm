@@ -6,12 +6,13 @@ type IconType = React.ComponentType<{ className?: string }>;
 
 /** Máscara progressiva de CNPJ: 11222333000181 -> 11.222.333/0001-81 */
 export function maskCnpj(value: string): string {
-  const d = value.replace(/\D/g, "").slice(0, 14);
+  // Aceita o CNPJ alfanumérico (letras nas 12 primeiras posições, a partir de jul/2026)
+  const d = value.replace(/[^0-9a-z]/gi, "").toUpperCase().slice(0, 14);
   return d
-    .replace(/^(\d{2})(\d)/, "$1.$2")
-    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1/$2")
-    .replace(/(\d{4})(\d)/, "$1-$2");
+    .replace(/^(\w{2})(\w)/, "$1.$2")
+    .replace(/^(\w{2})\.(\w{3})(\w)/, "$1.$2.$3")
+    .replace(/\.(\w{3})(\w)/, ".$1/$2")
+    .replace(/(\w{4})(\w)/, "$1-$2");
 }
 
 /** Máscara progressiva de telefone brasileiro: (34) 99958-3398 ou (34) 3333-4444 */

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run tests/validation.test.ts tests/tickets.test.ts tests/documents.test.ts tests/preferences.test.ts tests/channels.test.ts",
+    "test": "vitest run tests/validation.test.ts tests/tickets.test.ts tests/documents.test.ts tests/preferences.test.ts tests/channels.test.ts tests/revisao.test.ts",
     "test:db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/permissions.test.ts",
     "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
     "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs"
