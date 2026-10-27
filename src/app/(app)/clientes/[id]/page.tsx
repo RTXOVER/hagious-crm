@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { FileClock, MessageCircle, Plus, Ticket } from "lucide-react";
+import { FileClock, Mail, MessageCircle, MessagesSquare, Plus, Ticket } from "lucide-react";
 import { DOC_STATUS_LABEL, addDays, describeRule, dueState, todaySP } from "@/lib/documents";
 import { deleteRequirementAction, saveRequirementAction, setDocStatusAction, toggleRequirementAction } from "../../documentos/actions";
 import { QuickReceive, RequirementForm } from "../../documentos/doc-forms";
@@ -49,7 +49,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const supabase = await createClient();
   // Tudo em paralelo: cada consulta ao banco leva ~0,3 s. O histórico só retorna dados
   // para a gestão (regra do banco), então pode ser pedido sempre.
-  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes] = await Promise.all([
+  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes, saves, convs] = await Promise.all([
     requireProfile(),
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("client_contacts").select("*").eq("client_id", id).order("is_primary", { ascending: false }).order("name"),
@@ -83,6 +83,9 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
       .order("due_date", { ascending: true })
       .limit(60),
     supabase.from("document_types").select("id, name, department, default_periodicity, default_due_day, description").eq("active", true).order("name"),
+    // Conversas: mensagens salvas no cliente e conversas ligadas a ele
+    supabase.from("message_saves").select("*").eq("client_id", id).order("sent_at", { ascending: false }).limit(30),
+    supabase.from("conversations").select("id, kind, contact_name, contact_address, last_message_at, unread_count").eq("client_id", id).order("last_message_at", { ascending: false }).limit(10),
   ]);
   // RLS: se a pessoa não tem acesso, o banco não devolve o registro -> 404
   if (!client) notFound();
@@ -292,6 +295,47 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                   <RequirementForm action={saveRequirementAction.bind(null, id, null)} types={usableTypes} people={activePeople} today={today} submitLabel="Criar exigência" />
                 </div>
               </details>
+            )}
+          </section>
+
+          <section className="card scroll-mt-24 p-6" aria-labelledby="mensagens-title" id="mensagens">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 id="mensagens-title" className="flex items-center gap-2 text-lg font-extrabold">
+                <MessagesSquare className="h-5 w-5 text-link" /> Mensagens e conversas
+              </h2>
+              <Link href="/conversas" className="btn-secondary"><MessagesSquare className="h-4 w-4" /> Abrir Conversas</Link>
+            </div>
+            {(convs.data ?? []).length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {(convs.data ?? []).map((c) => (
+                  <Link key={c.id} href={`/conversas?c=${c.id}`} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs font-semibold transition hover:border-brand-500">
+                    {c.kind === "whatsapp" ? <MessageCircle className="h-3.5 w-3.5 text-[#1f8a5f]" /> : <Mail className="h-3.5 w-3.5 text-info" />}
+                    {c.contact_name || c.contact_address}
+                    {c.unread_count > 0 && <span className="rounded-full bg-brand-500 px-1.5 text-[10px] text-white">{c.unread_count}</span>}
+                  </Link>
+                ))}
+              </div>
+            )}
+            {!saves.data?.length ? (
+              <p className="text-sm text-muted">
+                Nenhuma mensagem salva. Em Conversas, use “Salvar no cliente” numa mensagem do WhatsApp ou e-mail para guardá-la aqui.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {saves.data.map((s) => (
+                  <li key={s.id} className="rounded-xl border border-line p-3 text-sm">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                      {s.channel === "whatsapp" ? <MessageCircle className="h-3.5 w-3.5 text-[#1f8a5f]" /> : <Mail className="h-3.5 w-3.5 text-info" />}
+                      <span className="font-semibold text-ink">{s.direction === "entrada" ? s.sender : `Hagious → cliente`}</span>
+                      <span>{f.dateTime(s.sent_at)}</span>
+                      <span>· salva por {s.saved_by ? nameOf.get(s.saved_by) ?? "—" : "—"}</span>
+                    </p>
+                    {s.subject && <p className="mt-1 font-semibold">{s.subject}</p>}
+                    <p className="mt-1 line-clamp-4 whitespace-pre-wrap">{s.body}</p>
+                    {s.note && <p className="mt-2 rounded-lg bg-surface-2 px-2 py-1 text-xs"><strong>Obs.:</strong> {s.note}</p>}
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 

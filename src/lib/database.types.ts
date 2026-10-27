@@ -55,6 +55,35 @@ type NotificationRow = {
   id: number; user_id: string; ticket_id: string | null; document_id: string | null; kind: string; title: string; body: string | null;
   link: string | null; dedupe_key: string; read_at: string | null; created_at: string;
 };
+type ChannelKind = "whatsapp" | "email";
+type ChannelStatus = "pendente" | "conectado" | "erro" | "desconectado";
+type MessageDirection = "entrada" | "saida";
+type MessageStatus = "recebida" | "enviando" | "enviada" | "entregue" | "lida" | "falhou";
+type ChannelAccountRow = {
+  id: string; kind: ChannelKind; label: string; address: string | null; status: ChannelStatus; config: Json;
+  last_sync_at: string | null; last_error: string | null; is_demo: boolean; connected_by: string | null;
+  created_at: string; updated_at: string;
+};
+type ChannelSecretRow = { account_id: string; ciphertext: string; updated_at: string };
+type ConversationRow = {
+  id: string; account_id: string; kind: ChannelKind; contact_address: string; contact_name: string | null;
+  client_id: string | null; contact_id: string | null; last_message_at: string | null; last_preview: string | null;
+  last_inbound_at: string | null; unread_count: number; archived: boolean; is_demo: boolean; created_at: string; updated_at: string;
+};
+type MessageRow = {
+  id: string; conversation_id: string; account_id: string; direction: MessageDirection; external_id: string | null;
+  kind: string; subject: string | null; body: string | null; media: Json | null; status: MessageStatus; error: string | null;
+  sent_by: string | null; via: string | null; sent_at: string; created_at: string;
+};
+type MessageSaveRow = {
+  id: string; message_id: string | null; client_id: string; channel: ChannelKind; direction: MessageDirection;
+  sender: string | null; subject: string | null; body: string | null; sent_at: string; note: string | null;
+  saved_by: string | null; created_at: string;
+};
+type WebhookEventRow = {
+  id: number; source: "whatsapp" | "email"; payload: Json; signature_ok: boolean; received_at: string;
+  processed_at: string | null; attempts: number; error: string | null;
+};
 type UserPreferencesRow = {
   user_id: string; theme: string; font_scale: string; language: string; date_format: string;
   time_format: string; timezone: string; currency: string; updated_at: string;
@@ -378,6 +407,35 @@ export type Database = {
         "user_id",
         [{ foreignKeyName: "user_preferences_user_id_fkey"; columns: ["user_id"]; isOneToOne: true; referencedRelation: "profiles"; referencedColumns: ["id"] }]
       >;
+      // ---------- Etapa 4 (conversas) ----------
+      channel_accounts: TableDef<ChannelAccountRow, "kind" | "label">;
+      channel_secrets: TableDef<ChannelSecretRow, "account_id" | "ciphertext">;
+      conversations: TableDef<
+        ConversationRow,
+        "account_id" | "kind" | "contact_address",
+        [
+          { foreignKeyName: "conversations_account_id_fkey"; columns: ["account_id"]; isOneToOne: false; referencedRelation: "channel_accounts"; referencedColumns: ["id"] },
+          { foreignKeyName: "conversations_client_id_fkey"; columns: ["client_id"]; isOneToOne: false; referencedRelation: "clients"; referencedColumns: ["id"] },
+          { foreignKeyName: "conversations_contact_id_fkey"; columns: ["contact_id"]; isOneToOne: false; referencedRelation: "client_contacts"; referencedColumns: ["id"] },
+        ]
+      >;
+      messages: TableDef<
+        MessageRow,
+        "conversation_id" | "account_id" | "direction" | "status",
+        [
+          { foreignKeyName: "messages_conversation_id_fkey"; columns: ["conversation_id"]; isOneToOne: false; referencedRelation: "conversations"; referencedColumns: ["id"] },
+          { foreignKeyName: "messages_sent_by_fkey"; columns: ["sent_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      >;
+      message_saves: TableDef<
+        MessageSaveRow,
+        "client_id" | "channel" | "direction" | "sent_at",
+        [
+          { foreignKeyName: "message_saves_client_id_fkey"; columns: ["client_id"]; isOneToOne: false; referencedRelation: "clients"; referencedColumns: ["id"] },
+          { foreignKeyName: "message_saves_saved_by_fkey"; columns: ["saved_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+        ]
+      >;
+      webhook_events: TableDef<WebhookEventRow, "source" | "payload" | "signature_ok">;
       // ---------- Etapa 3 (documentos) ----------
       document_settings: TableDef<DocumentSettingsRow, "id">;
       document_types: TableDef<DocumentTypeRow, "name" | "department">;
@@ -422,6 +480,15 @@ export type Database = {
       doc_today: { Args: never; Returns: string };
       doc_generate: { Args: { p_requirement?: string | null; p_today?: string | null }; Returns: number };
       documents_sweep: { Args: { p_now?: string | null }; Returns: Json };
+      channel_ingest: {
+        Args: {
+          p_account: string; p_direction: MessageDirection; p_external_id: string | null; p_contact_address: string;
+          p_contact_name: string | null; p_kind: string; p_subject: string | null; p_body: string | null; p_media: Json | null;
+          p_status: MessageStatus; p_via: string | null; p_sent_at: string; p_sent_by?: string | null;
+        };
+        Returns: string | null;
+      };
+      channel_message_status: { Args: { p_account: string; p_external_id: string; p_status: MessageStatus; p_error?: string | null }; Returns: boolean };
     };
     Enums: {
       user_role: UserRole;
@@ -437,6 +504,10 @@ export type Database = {
       doc_status: DocStatus;
       reminder_channel: ReminderChannel;
       reminder_status: ReminderStatus;
+      channel_kind: ChannelKind;
+      channel_status: ChannelStatus;
+      message_direction: MessageDirection;
+      message_status: MessageStatus;
     };
     CompositeTypes: { [_ in never]: never };
   };

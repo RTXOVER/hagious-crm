@@ -12,7 +12,7 @@ Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendi
 | 2. Clientes | Cadastro, contatos, serviços, responsáveis, histórico | Pronto e testado no Supabase (São Paulo) |
 | 3. Operação | Tickets, SLA, encaminhamentos, alertas | Pronto e testado no Supabase (banco e telas) |
 | 3. Operação | Documentos: exigências, pendências, lembretes (5/2/0 dias), relatório crítico | Pronto e testado no Supabase (banco e telas); envio ao cliente pelo WhatsApp na Etapa 4 |
-| 4. Integrações | WhatsApp oficial (Cloud API), lembretes, escalonamento | Não iniciado |
+| 4. Integrações | Central de Conversas: WhatsApp oficial (coexistência) e e-mail (IMAP/SMTP) | E-mail pronto e testado com caixa real de teste; WhatsApp pronto e testado em modo de demonstração — **depende da configuração única da Hagious na Meta** (ver abaixo) |
 | 5. Gestão | Dashboard e validação final | Não iniciado |
 
 ## Perfis de acesso
@@ -66,6 +66,19 @@ npm install
 npm run create-admin -- "seu.email@hagious.com.br" "Seu Nome"   # mostra uma senha provisória
 npm run dev                                                    # abre em http://localhost:3000
 ```
+
+## Conversas (WhatsApp e e-mail)
+
+Tela **Conversas**: mensagens dos canais conectados, com ações por mensagem (salvar no cliente, abrir ticket,
+marcar documento como recebido). Canais em **Conversas → Canais** (somente administradores conectam).
+
+- **E-mail**: IMAP/SMTP. A senha é digitada na tela e fica criptografada (AES-256-GCM, chave `CHANNEL_SECRET_KEY` no servidor).
+- **WhatsApp**: API oficial da Meta com coexistência (o número continua no app WhatsApp Business). Para ativar o botão
+  "Conectar WhatsApp", configure uma vez no servidor: `META_APP_ID`, `META_APP_SECRET`, `WHATSAPP_ES_CONFIG_ID`
+  (e opcionalmente `META_GRAPH_VERSION`). Requer a Hagious como Tech Provider na Meta e o webhook
+  `https://<domínio>/api/webhooks/whatsapp` (endereço público com HTTPS) usando `WHATSAPP_VERIFY_TOKEN`.
+  Limitações da Meta nesse modo: sem grupos; texto livre só até 24h após a última mensagem do cliente.
+- **Modo de demonstração**: simula mensagens chegando, com o mesmo processamento do canal real.
 
 ## Testes
 

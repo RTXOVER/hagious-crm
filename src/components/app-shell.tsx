@@ -13,7 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  MessageCircle,
+  MessagesSquare,
   Ticket,
   UsersRound,
   X,
@@ -27,6 +27,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/clientes", label: "Clientes", icon: Building2 },
   { href: "/tickets", label: "Tickets", icon: Ticket },
   { href: "/documentos", label: "Documentos", icon: FileClock },
+  { href: "/conversas", label: "Conversas", icon: MessagesSquare },
   { href: "/notificacoes", label: "Avisos", icon: Bell },
 ];
 const ADMIN_NAV: NavItem[] = [{ href: "/equipe", label: "Equipe", icon: UsersRound }];
@@ -36,7 +37,6 @@ const ACCOUNT_NAV: NavItem[] = [{ href: "/configuracoes", label: "Configuraçõe
 
 // Módulos planejados: aparecem desativados para mostrar o que vem a seguir, sem fingir que existem
 const UPCOMING = [
-  { label: "WhatsApp", icon: MessageCircle, stage: "Etapa 4" },
   { label: "Sucesso do cliente", icon: CalendarClock, stage: "Etapa 5" },
 ];
 

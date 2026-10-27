@@ -17,6 +17,14 @@ export default async function NewTicketPage(props: PageProps<"/tickets/novo">) {
     supabase.from("profiles").select("id, full_name, department").eq("active", true).order("full_name"),
   ]);
   const initial = typeof sp.cliente === "string" && isUuid(sp.cliente) ? sp.cliente : undefined;
+  // Vindo de Conversas: título, descrição e origem da mensagem
+  const text = (k: string, max: number) => (typeof sp[k] === "string" ? String(sp[k]).slice(0, max) : undefined);
+  const origem = text("origem", 20);
+  const prefill = {
+    title: text("titulo", 200),
+    description: text("descricao", 2000),
+    origin: origem === "whatsapp" || origem === "email" ? (origem as "whatsapp" | "email") : undefined,
+  };
 
   return (
     <>
@@ -29,6 +37,7 @@ export default async function NewTicketPage(props: PageProps<"/tickets/novo">) {
         categories={(categories ?? []).filter((c) => c.department !== "atendimento") as Parameters<typeof TicketForm>[0]["categories"]}
         people={people ?? []}
         initialClientId={initial}
+        initial={prefill}
       />
     </>
   );

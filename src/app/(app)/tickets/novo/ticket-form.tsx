@@ -23,11 +23,14 @@ export function TicketForm({
   categories,
   people,
   initialClientId,
+  initial,
 }: {
   clients: { id: string; legal_name: string; trade_name: string | null }[];
   categories: Category[];
   people: { id: string; full_name: string; department: string | null }[];
   initialClientId?: string;
+  /** Pré-preenchimento (ex.: ao abrir ticket a partir de uma mensagem em Conversas) */
+  initial?: { title?: string; description?: string; origin?: Origin };
 }) {
   const f = useFormat();
   const [state, dispatch, pending] = useActionState(createTicketAction, {});
@@ -36,9 +39,9 @@ export function TicketForm({
   const [categoryId, setCategoryId] = useState("");
   const [preview, setPreview] = useState<{ firstResponse: string; resolution: string } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [origin, setOrigin] = useState<Origin>("whatsapp");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [origin, setOrigin] = useState<Origin>(initial?.origin ?? "whatsapp");
   const [priority, setPriority] = useState<Priority>("normal");
   const [assignee, setAssignee] = useState("");
   const err = state.errors ?? {};

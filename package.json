@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run tests/validation.test.ts tests/tickets.test.ts tests/documents.test.ts tests/preferences.test.ts",
+    "test": "vitest run tests/validation.test.ts tests/tickets.test.ts tests/documents.test.ts tests/preferences.test.ts tests/channels.test.ts",
     "test:db": "node --env-file=.env.local node_modules/vitest/vitest.mjs run tests/permissions.test.ts",
     "create-admin": "node --env-file=.env.local scripts/create-admin.mjs",
     "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs"
@@ -16,8 +16,11 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "imapflow": "^2.9.1",
     "lucide-react": "^1.61.0",
+    "mailparser": "^3.12.4",
     "next": "16.4.3",
+    "nodemailer": "^10.2.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",
@@ -25,7 +28,9 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "@types/mailparser": "^3.9.0",
     "@types/node": "^24.19.2",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
