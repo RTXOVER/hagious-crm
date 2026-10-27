@@ -5,6 +5,8 @@ import { Plus, Search } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
+import { departmentOptions } from "@/components/ui/options";
 import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import {
   OPEN_STATUSES,
@@ -103,10 +105,8 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
           <input name="q" defaultValue={q} placeholder="Buscar por número (#12) ou título" className="input pl-9" aria-label="Buscar tickets" />
         </div>
-        <select name="departamento" defaultValue={dep ?? ""} className="input w-auto" aria-label="Departamento">
-          <option value="">Todos os departamentos</option>
-          {OPERATIONAL_DEPARTMENTS.map((d) => <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>)}
-        </select>
+        <Select name="departamento" size="sm" className="w-56" aria-label="Departamento" defaultValue={dep ?? ""} submitOnChange
+          options={departmentOptions({ all: "Todos os departamentos" })} />
         <button className="btn-secondary">Filtrar</button>
       </form>
 

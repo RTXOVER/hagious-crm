@@ -9,11 +9,14 @@ import { formatCnpj, onlyDigits } from "@/lib/validation/cnpj";
 import { daysAgoIso } from "@/lib/dates";
 import { deleteClientAction } from "./actions";
 import { DeleteClientButton } from "./[id]/client-admin-actions";
+import { Select } from "@/components/ui/select";
+import { departmentOptions } from "@/components/ui/options";
 
 export const metadata: Metadata = { title: "Clientes" };
 
 const PAGE_SIZE = 50;
 const STATUSES = ["ativo", "suspenso", "encerrado"] as const;
+const STATUS_DOT = { ativo: "#1f8a6a", suspenso: "#c27a12", encerrado: "#9aaaa5" } as const;
 const REGIMES = Object.keys(TAX_REGIME_LABEL) as (keyof typeof TAX_REGIME_LABEL)[];
 
 function pick<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
@@ -96,18 +99,12 @@ export default async function ClientsPage(props: PageProps<"/clientes">) {
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
           <input name="q" defaultValue={q} placeholder="Buscar por razão social, nome fantasia ou CNPJ" className="input pl-9" aria-label="Buscar clientes" />
         </div>
-        <select name="status" defaultValue={status ?? ""} className="input w-auto" aria-label="Situação">
-          <option value="">Todas as situações</option>
-          {STATUSES.map((s) => <option key={s} value={s}>{CLIENT_STATUS_LABEL[s]}</option>)}
-        </select>
-        <select name="regime" defaultValue={regime ?? ""} className="input w-auto" aria-label="Regime">
-          <option value="">Todos os regimes</option>
-          {REGIMES.map((r) => <option key={r} value={r}>{TAX_REGIME_LABEL[r]}</option>)}
-        </select>
-        <select name="departamento" defaultValue={departamento ?? ""} className="input w-auto" aria-label="Departamento">
-          <option value="">Todos os departamentos</option>
-          {OPERATIONAL_DEPARTMENTS.map((d) => <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>)}
-        </select>
+        <Select name="status" size="sm" className="w-52" aria-label="Situação" defaultValue={status ?? ""} submitOnChange
+          options={[{ value: "", label: "Todas as situações", dot: "#9aaaa5" }, ...STATUSES.map((s) => ({ value: s, label: CLIENT_STATUS_LABEL[s], dot: STATUS_DOT[s] }))]} />
+        <Select name="regime" size="sm" className="w-52" aria-label="Regime" defaultValue={regime ?? ""} submitOnChange
+          options={[{ value: "", label: "Todos os regimes" }, ...REGIMES.map((r) => ({ value: r, label: TAX_REGIME_LABEL[r] }))]} />
+        <Select name="departamento" size="sm" className="w-56" aria-label="Departamento" defaultValue={departamento ?? ""} submitOnChange
+          options={departmentOptions({ all: "Todos os departamentos" })} />
         {novos && <input type="hidden" name="novos" value="30" />}
         <button className="btn-secondary" type="submit">Filtrar</button>
       </form>

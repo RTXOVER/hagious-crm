@@ -8,6 +8,9 @@ import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import { MONTHS, PERIODICITIES, PERIODICITY_LABEL, describeRule } from "@/lib/documents";
 import { Alert, FormMessage } from "@/components/page-header";
 import { IconField } from "@/components/form-controls";
+import { Select } from "@/components/ui/select";
+import { Segmented, Switch } from "@/components/ui/controls";
+import { DEPARTMENT_DOT, departmentOptions, peopleOptions } from "@/components/ui/options";
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 type Dep = "contabil" | "fiscal" | "dp";
@@ -25,10 +28,6 @@ function useManualAction(action: Action) {
   return { state, submit, pending, err: state.errors ?? {} };
 }
 
-const personLabel = (p: Person) =>
-  `${p.full_name}${p.department ? ` (${DEPARTMENT_LABEL[p.department as keyof typeof DEPARTMENT_LABEL]})` : " (gestão)"}`;
-const sortPeople = (people: Person[], dep?: string) =>
-  [...people].sort((a, b) => Number(b.department === dep) - Number(a.department === dep) || a.full_name.localeCompare(b.full_name));
 
 // ---------------- Situação da pendência ----------------
 
@@ -148,10 +147,8 @@ export function DocResponsibleForm({ action, current, people, department }: { ac
     <form onSubmit={submit} className="space-y-2">
       <FormMessage state={state} />
       <div className="flex gap-2">
-        <select name="responsible_id" defaultValue={current ?? ""} className="input" aria-label="Responsável pela cobrança">
-          <option value="">Responsável do cliente / departamento</option>
-          {sortPeople(people, department).map((p) => <option key={p.id} value={p.id}>{personLabel(p)}</option>)}
-        </select>
+        <Select name="responsible_id" defaultValue={current ?? ""} aria-label="Responsável pela cobrança" className="min-w-0 flex-1" searchable
+          options={peopleOptions(people, { empty: "Automático", emptyHint: "Responsável do cliente / departamento", department })} />
         <button className="btn-secondary px-3" disabled={pending} aria-label="Salvar responsável">
           {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
         </button>
@@ -213,23 +210,21 @@ export function RequirementForm({
               <p className="input bg-surface-2">{type?.name ?? "—"}</p>
             </>
           ) : (
-            <select id="rq-type-n" name="document_type_id" className="input" value={typeId} onChange={(e) => chooseType(e.target.value)}>
-              <option value="">Escolha…</option>
-              {OPERATIONAL_DEPARTMENTS.map((d) => (
-                <optgroup key={d} label={DEPARTMENT_LABEL[d]}>
-                  {types.filter((t) => t.department === d).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </optgroup>
-              ))}
-            </select>
+            <Select id="rq-type-n" name="document_type_id" value={typeId} onChange={chooseType} searchable invalid={!!err.document_type_id} placeholder="Escolha o documento…"
+              options={OPERATIONAL_DEPARTMENTS.flatMap((d) =>
+                types.filter((t) => t.department === d).map((t) => ({
+                  value: t.id, label: t.name, group: DEPARTMENT_LABEL[d], dot: DEPARTMENT_DOT[d],
+                  hint: `${PERIODICITY_LABEL[t.default_periodicity]}, dia ${t.default_due_day}`,
+                })),
+              )} />
           )}
           {err.document_type_id && <p className="field-error">{err.document_type_id}</p>}
           {type?.description && <p className="mt-1 text-xs text-muted">{type.description}</p>}
         </div>
-        <div>
-          <label className="label" htmlFor={`rq-per-${initial ? "e" : "n"}`}>Frequência</label>
-          <select id={`rq-per-${initial ? "e" : "n"}`} name="periodicity" className="input" value={periodicity} onChange={(e) => setPeriodicity(e.target.value as Periodicity)}>
-            {PERIODICITIES.map((p) => <option key={p} value={p}>{PERIODICITY_LABEL[p]}</option>)}
-          </select>
+        <div className="sm:col-span-2">
+          <p className="label">Frequência</p>
+          <Segmented name="periodicity" aria-label="Frequência" value={periodicity} onChange={setPeriodicity}
+            options={PERIODICITIES.map((p) => ({ value: p, label: PERIODICITY_LABEL[p] }))} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -239,9 +234,8 @@ export function RequirementForm({
           {periodicity !== "mensal" && (
             <div>
               <label className="label" htmlFor={`rq-mon-${initial ? "e" : "n"}`}>{periodicity === "anual" ? "Mês" : "A partir de"}</label>
-              <select id={`rq-mon-${initial ? "e" : "n"}`} name="first_month" className="input" value={firstMonth} onChange={(e) => setFirstMonth(e.target.value)}>
-                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-              </select>
+              <Select id={`rq-mon-${initial ? "e" : "n"}`} name="first_month" value={firstMonth} onChange={setFirstMonth}
+                options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m.charAt(0).toUpperCase() + m.slice(1), badge: String(i + 1).padStart(2, "0") }))} />
             </div>
           )}
           {err.due_day && <p className="field-error col-span-2">{err.due_day}</p>}
@@ -250,10 +244,8 @@ export function RequirementForm({
         {preview && <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm sm:col-span-2"><strong>Regra:</strong> {preview}. Dia 31 = último dia do mês.</p>}
         <div>
           <label className="label" htmlFor={`rq-resp-${initial ? "e" : "n"}`}>Quem cobra (opcional)</label>
-          <select id={`rq-resp-${initial ? "e" : "n"}`} name="responsible_id" className="input" defaultValue={v?.responsible_id ?? initial?.responsible_id ?? ""}>
-            <option value="">Responsável do cliente no departamento</option>
-            {sortPeople(people, type?.department).map((p) => <option key={p.id} value={p.id}>{personLabel(p)}</option>)}
-          </select>
+          <Select id={`rq-resp-${initial ? "e" : "n"}`} name="responsible_id" defaultValue={v?.responsible_id ?? initial?.responsible_id ?? ""} searchable
+            options={peopleOptions(people, { empty: "Automático", emptyHint: "Responsável do cliente no departamento", department: type?.department })} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -376,10 +368,8 @@ export function NewDocumentForm({
           </div>
           <div>
             <label htmlFor="responsible_id" className="label">Quem cobra (opcional)</label>
-            <select id="responsible_id" name="responsible_id" className="input" defaultValue={v?.responsible_id ?? ""}>
-              <option value="">Responsável do cliente no departamento</option>
-              {sortPeople(people, type?.department).map((p) => <option key={p.id} value={p.id}>{personLabel(p)}</option>)}
-            </select>
+            <Select id="responsible_id" name="responsible_id" defaultValue={v?.responsible_id ?? ""} searchable
+              options={peopleOptions(people, { empty: "Automático", emptyHint: "Responsável do cliente no departamento", department: type?.department })} />
           </div>
           <div className="sm:col-span-2">
             <label htmlFor="title" className="label">Descrição (opcional)</label>
@@ -451,17 +441,14 @@ export function DocTypeForm({ action, initial, submitLabel }: { action: Action; 
           {err.name && <p className="field-error">{err.name}</p>}
         </div>
         <div>
-          <label className="label">Departamento</label>
-          <select name="department" className="input" defaultValue={initial?.department ?? "contabil"}>
-            {OPERATIONAL_DEPARTMENTS.map((d) => <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>)}
-          </select>
+          <p className="label">Departamento</p>
+          <Select name="department" aria-label="Departamento" defaultValue={initial?.department ?? "contabil"} options={departmentOptions()} />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="label">Frequência padrão</label>
-            <select name="default_periodicity" className="input" defaultValue={initial?.default_periodicity ?? "mensal"}>
-              {PERIODICITIES.map((p) => <option key={p} value={p}>{PERIODICITY_LABEL[p]}</option>)}
-            </select>
+            <p className="label">Frequência padrão</p>
+            <Select name="default_periodicity" aria-label="Frequência padrão" defaultValue={initial?.default_periodicity ?? "mensal"}
+              options={PERIODICITIES.map((p) => ({ value: p, label: PERIODICITY_LABEL[p] }))} />
           </div>
           <div>
             <label className="label">Dia padrão</label>
@@ -474,9 +461,9 @@ export function DocTypeForm({ action, initial, submitLabel }: { action: Action; 
           <input name="description" className="input" defaultValue={initial?.description ?? ""} placeholder="O que exatamente o cliente deve enviar" />
         </div>
         {initial && (
-          <label className="flex items-center gap-2 text-sm font-semibold">
-            <input type="checkbox" name="active" defaultChecked={initial.active} className="h-4 w-4 accent-brand-600" /> Ativo (aparece para novas exigências)
-          </label>
+          <div className="sm:col-span-2">
+            <Switch name="active" defaultChecked={initial.active} label="Ativo" description="Aparece ao cadastrar novas exigências" />
+          </div>
         )}
       </div>
       <button className="btn-primary" disabled={pending}>

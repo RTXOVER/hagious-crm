@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import type { ActionState } from "@/lib/auth";
 import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import { FormMessage } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
+import { departmentOptions, peopleOptions } from "@/components/ui/options";
 
 type Action = (prev: ActionState, formData: FormData) => Promise<ActionState>;
 
@@ -19,11 +21,7 @@ export function AddServiceForm({ action }: { action: Action }) {
       <div className="grid gap-3 sm:grid-cols-[10rem_1fr_10rem_auto] sm:items-end">
         <div>
           <label htmlFor="svc-dep" className="label">Departamento</label>
-          <select id="svc-dep" name="department" className="input" defaultValue={v?.department ?? "contabil"}>
-            {OPERATIONAL_DEPARTMENTS.map((d) => (
-              <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>
-            ))}
-          </select>
+          <Select id="svc-dep" name="department" defaultValue={v?.department ?? "contabil"} options={departmentOptions()} />
         </div>
         <div>
           <label htmlFor="svc-desc" className="label">Descrição</label>
@@ -57,18 +55,9 @@ export function ResponsiblesForm({
       {OPERATIONAL_DEPARTMENTS.map((d) => (
         <div key={d}>
           <label htmlFor={`resp_${d}`} className="label">{DEPARTMENT_LABEL[d]}</label>
-          <select id={`resp_${d}`} name={`resp_${d}`} className="input" defaultValue={current[d] ?? ""}>
-            <option value="">— Sem responsável —</option>
-            {/* Pessoas do próprio departamento primeiro */}
-            {[...people]
-              .sort((a, b) => Number(b.department === d) - Number(a.department === d) || a.full_name.localeCompare(b.full_name))
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}
-                  {p.department === d ? "" : p.department ? ` (${DEPARTMENT_LABEL[p.department as keyof typeof DEPARTMENT_LABEL]})` : " (gestão)"}
-                </option>
-              ))}
-          </select>
+          {/* Pessoas do próprio departamento primeiro */}
+          <Select id={`resp_${d}`} name={`resp_${d}`} defaultValue={current[d] ?? ""} searchable
+            options={peopleOptions(people, { empty: "Sem responsável", department: d })} />
         </div>
       ))}
       <button className="btn-secondary" disabled={pending}>{pending ? "Salvando…" : "Salvar responsáveis"}</button>

@@ -10,6 +10,7 @@ import {
   Building2,
   Calculator,
   CalendarDays,
+  Check,
   CircleCheck,
   LoaderCircle,
   Mail,
@@ -30,6 +31,8 @@ import { isValidCnpj, onlyDigits } from "@/lib/validation/cnpj";
 import { CLIENT_STATUS_LABEL, DEPARTMENT_LABEL, TAX_REGIME_LABEL } from "@/lib/labels";
 import { Alert } from "@/components/page-header";
 import { ChoiceChips, IconField, Stepper, ToggleCard, maskCnpj, maskPhone } from "@/components/form-controls";
+import { Select } from "@/components/ui/select";
+import { peopleOptions } from "@/components/ui/options";
 import { createClientAction } from "../actions";
 import { lookupCnpjAction, type CnpjLookupResult } from "../cnpj-actions";
 
@@ -271,23 +274,14 @@ export function ClientWizard({ people }: { people: Person[] }) {
                   description={description}
                 >
                   <label htmlFor={`resp_${dep}`} className="label">Responsável</label>
-                  <select
+                  <Select
                     id={`resp_${dep}`}
                     name={`resp_${dep}`}
-                    className="input"
                     value={resp[dep]}
-                    onChange={(e) => setResp((r) => ({ ...r, [dep]: e.target.value }))}
-                  >
-                    <option value="">Definir depois</option>
-                    {[...people]
-                      .sort((a, b) => Number(b.department === dep) - Number(a.department === dep) || a.full_name.localeCompare(b.full_name))
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.full_name}
-                          {p.department === dep ? "" : p.department ? ` (${DEPARTMENT_LABEL[p.department as Dep] ?? "Atendimento"})` : " (gestão)"}
-                        </option>
-                      ))}
-                  </select>
+                    onChange={(v) => setResp((r) => ({ ...r, [dep]: v }))}
+                    searchable
+                    options={peopleOptions(people, { empty: "Definir depois", department: dep })}
+                  />
                 </ToggleCard>
               ))}
             </div>
@@ -308,7 +302,10 @@ export function ClientWizard({ people }: { people: Person[] }) {
               optIn ? "border-brand-500 bg-brand-50" : "border-line hover:border-brand-500/60"
             }`}
           >
-            <input type="checkbox" name="contact_whatsapp_opt_in" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} className="mt-1 h-4 w-4 accent-brand-600" />
+            <input type="checkbox" name="contact_whatsapp_opt_in" checked={optIn} onChange={(e) => setOptIn(e.target.checked)} className="peer sr-only" />
+            <span aria-hidden className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition peer-focus-visible:ring-4 peer-focus-visible:ring-brand-500/20 ${optIn ? "border-brand-600 bg-brand-600 text-white" : "border-muted/50 bg-surface"}`}>
+              {optIn && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+            </span>
             <span>
               <span className="flex items-center gap-2 font-bold"><ShieldCheck className="h-4 w-4 text-link" /> O contato autorizou mensagens pelo WhatsApp</span>
               <span className="mt-0.5 block text-sm text-muted">

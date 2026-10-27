@@ -7,8 +7,10 @@ import type { Database } from "@/lib/database.types";
 import { CLIENT_STATUS_LABEL, TAX_REGIME_LABEL } from "@/lib/labels";
 import { formatCnpj, formatPhone } from "@/lib/validation/cnpj";
 import { FormMessage } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
 
 type Client = Database["public"]["Tables"]["clients"]["Row"];
+const REGIME_BADGE: Record<string, string> = { mei: "MEI", simples_nacional: "SN", lucro_presumido: "LP", lucro_real: "LR", outro: "…" };
 
 export function ClientForm({
   action,
@@ -44,20 +46,14 @@ export function ClientForm({
         />
         <div>
           <label htmlFor="tax_regime" className="label">Regime tributário *</label>
-          <select id="tax_regime" name="tax_regime" className="input" defaultValue={v("tax_regime", client?.tax_regime ?? "simples_nacional")}>
-            {Object.entries(TAX_REGIME_LABEL).map(([val, l]) => (
-              <option key={val} value={val}>{l}</option>
-            ))}
-          </select>
+          <Select id="tax_regime" name="tax_regime" defaultValue={v("tax_regime", client?.tax_regime ?? "simples_nacional")}
+            options={Object.entries(TAX_REGIME_LABEL).map(([val, l]) => ({ value: val, label: l, badge: REGIME_BADGE[val] }))} />
           {err.tax_regime && <p className="field-error">{err.tax_regime}</p>}
         </div>
         <div>
           <label htmlFor="status" className="label">Situação *</label>
-          <select id="status" name="status" className="input" defaultValue={v("status", client?.status ?? "ativo")}>
-            {Object.entries(CLIENT_STATUS_LABEL).map(([val, l]) => (
-              <option key={val} value={val}>{l}</option>
-            ))}
-          </select>
+          <Select id="status" name="status" defaultValue={v("status", client?.status ?? "ativo")}
+            options={Object.entries(CLIENT_STATUS_LABEL).map(([val, l]) => ({ value: val, label: l, dot: { ativo: "#1f8a6a", suspenso: "#c27a12", encerrado: "#9aaaa5" }[val] }))} />
         </div>
         <Field label="Cliente desde" name="client_since" type="date" error={err.client_since} defaultValue={v("client_since", client?.client_since)} />
         <Field label="E-mail da empresa" name="email" type="email" error={err.email} defaultValue={v("email", client?.email)} />

@@ -3,9 +3,13 @@
 import { startTransition, useActionState, useState, useTransition } from "react";
 import { ArrowRightLeft, CircleCheck, Hand, LoaderCircle, MessageSquare, Send, UserRound } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
-import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
+import { OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import { NEXT_STATUS, PRIORITY_LABEL, STATUS_LABEL } from "@/lib/tickets";
 import { Alert, FormMessage } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
+import { departmentOptions, peopleOptions } from "@/components/ui/options";
+
+const PRIORITY_DOT: Record<string, string> = { baixa: "#9aaaa5", normal: "#2f6fc4", alta: "#c27a12", urgente: "#b42318" };
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 type Person = { id: string; full_name: string; department: string | null };
@@ -95,10 +99,8 @@ export function AssignPanel({ action, current, people }: { action: Action; curre
   const { state, submit, pending } = useManualAction(action);
   return (
     <form onSubmit={submit} className="flex gap-2">
-      <select name="assignee_id" defaultValue={current ?? ""} className="input" aria-label="Responsável">
-        <option value="">Sem responsável (fila do departamento)</option>
-        {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-      </select>
+      <Select name="assignee_id" defaultValue={current ?? ""} aria-label="Responsável" className="min-w-0 flex-1" searchable
+        options={peopleOptions(people, { empty: "Sem responsável", emptyHint: "Fila do departamento" })} />
       <button className="btn-secondary px-3" disabled={pending} aria-label="Salvar responsável">
         {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
       </button>
@@ -115,16 +117,13 @@ export function ForwardPanel({ action, currentDepartment, people }: { action: Ac
       <FormMessage state={state} />
       <div>
         <label htmlFor="fw-dep" className="label">Para o departamento</label>
-        <select id="fw-dep" name="department" className="input" value={dep} onChange={(e) => setDep(e.target.value as typeof dep)}>
-          {OPERATIONAL_DEPARTMENTS.filter((d) => d !== currentDepartment).map((d) => <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>)}
-        </select>
+        <Select id="fw-dep" name="department" value={dep} onChange={(v) => setDep(v as typeof dep)}
+          options={departmentOptions().filter((o) => o.value !== currentDepartment)} />
       </div>
       <div>
         <label htmlFor="fw-assignee" className="label">Responsável (opcional)</label>
-        <select id="fw-assignee" name="assignee_id" className="input" defaultValue="">
-          <option value="">Fila do departamento (todos são avisados)</option>
-          {people.filter((p) => p.department === dep || !p.department).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-        </select>
+        <Select key={dep} id="fw-assignee" name="assignee_id" defaultValue=""
+          options={peopleOptions(people.filter((p) => p.department === dep || !p.department), { empty: "Fila do departamento", emptyHint: "Todos são avisados", department: dep })} />
       </div>
       <div>
         <label htmlFor="fw-reason" className="label">Motivo *</label>
@@ -142,21 +141,21 @@ export function PriorityControl({ current, action }: { current: Priority; action
   const [value, setValue] = useState(current);
   const [pending, start] = useTransition();
   return (
-    <select
+    <Select
       aria-label="Prioridade"
-      className="input w-auto py-1.5 text-sm"
+      size="sm"
+      className="w-52"
       value={value}
       disabled={pending}
-      onChange={(e) => {
-        const p = e.target.value as Priority;
+      onChange={(v) => {
+        const p = v as Priority;
         start(async () => {
           const r = await action(p);
           if (r.ok) setValue(p);
         });
       }}
-    >
-      {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>Prioridade: {PRIORITY_LABEL[p]}</option>)}
-    </select>
+      options={(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => ({ value: p, label: `Prioridade: ${PRIORITY_LABEL[p]}`, dot: PRIORITY_DOT[p] }))}
+    />
   );
 }
 

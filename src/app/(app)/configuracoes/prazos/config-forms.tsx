@@ -3,8 +3,10 @@
 import { startTransition, useActionState, useState } from "react";
 import { LoaderCircle, Plus, Save } from "lucide-react";
 import type { ActionState } from "@/lib/auth";
-import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import { FormMessage } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/controls";
+import { departmentOptions } from "@/components/ui/options";
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -109,19 +111,15 @@ export function CategoryForm({ action, initial, submitLabel }: { action: Action;
           {err.name && <p className="field-error">{err.name}</p>}
         </div>
         <div>
-          <label className="label">Departamento</label>
-          <select name="department" className="input" defaultValue={initial?.department ?? "contabil"}>
-            {OPERATIONAL_DEPARTMENTS.map((d) => <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>)}
-          </select>
+          <p className="label">Departamento</p>
+          <Select name="department" aria-label="Departamento" defaultValue={initial?.department ?? "contabil"} options={departmentOptions()} />
         </div>
         <div>
-          <label className="label">Prazo de resolução</label>
+          <p className="label">Prazo de resolução</p>
           <div className="flex gap-2">
-            <input name="resolution_value" type="number" min={1} className="input w-24" defaultValue={initial?.resolution_value ?? 1} />
-            <select name="resolution_unit" className="input" defaultValue={initial?.resolution_unit ?? "dias_uteis"}>
-              <option value="horas_uteis">horas úteis</option>
-              <option value="dias_uteis">dias úteis</option>
-            </select>
+            <input name="resolution_value" type="number" min={1} className="input w-24" aria-label="Quantidade" defaultValue={initial?.resolution_value ?? 1} />
+            <Select name="resolution_unit" aria-label="Unidade" className="flex-1" defaultValue={initial?.resolution_unit ?? "dias_uteis"}
+              options={[{ value: "horas_uteis", label: "horas úteis", badge: "H" }, { value: "dias_uteis", label: "dias úteis", badge: "D" }]} />
           </div>
           {err.resolution_value && <p className="field-error">{err.resolution_value}</p>}
         </div>
@@ -132,9 +130,9 @@ export function CategoryForm({ action, initial, submitLabel }: { action: Action;
           {err.first_response_hours && <p className="field-error">{err.first_response_hours}</p>}
         </div>
         {initial && (
-          <label className="flex items-center gap-2 self-end pb-2 text-sm font-semibold">
-            <input type="checkbox" name="active" defaultChecked={initial.active} className="h-4 w-4 accent-brand-600" /> Ativo (aparece ao abrir tickets)
-          </label>
+          <div className="self-end pb-1">
+            <Switch name="active" defaultChecked={initial.active} label="Ativo" description="Aparece ao abrir tickets" />
+          </div>
         )}
       </div>
       <button className="btn-primary" disabled={pending}>
@@ -161,13 +159,14 @@ export function HolidayForm({ action }: { action: Action }) {
           {err.name && <p className="field-error">{err.name}</p>}
         </div>
         <div>
-          <label className="label">Abrangência</label>
-          <select name="scope" className="input" defaultValue="municipal">
-            <option value="municipal">Municipal</option>
-            <option value="estadual">Estadual</option>
-            <option value="empresa">Empresa (recesso)</option>
-            <option value="nacional">Nacional</option>
-          </select>
+          <p className="label">Abrangência</p>
+          <Select name="scope" aria-label="Abrangência" defaultValue="municipal"
+            options={[
+              { value: "municipal", label: "Municipal", dot: "#2f6fc4" },
+              { value: "estadual", label: "Estadual", dot: "#8a5cd6" },
+              { value: "empresa", label: "Empresa", hint: "Recesso", dot: "#c27a12" },
+              { value: "nacional", label: "Nacional", dot: "#1f8a6a" },
+            ]} />
         </div>
         <button className="btn-secondary" disabled={pending}>
           {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Adicionar

@@ -6,6 +6,8 @@ import { Building2, Clock, LoaderCircle, Search, Send, X } from "lucide-react";
 import { DEPARTMENT_LABEL } from "@/lib/labels";
 import { ORIGIN_LABEL, PRIORITY_LABEL, formatSla } from "@/lib/tickets";
 import { useFormat } from "@/components/format-provider";
+import { Select } from "@/components/ui/select";
+import { peopleOptions } from "@/components/ui/options";
 import { Alert } from "@/components/page-header";
 import { ChoiceChips, IconField } from "@/components/form-controls";
 import { createTicketAction } from "../actions";
@@ -165,16 +167,8 @@ export function TicketForm({
           options={(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))} />
         <div>
           <label htmlFor="assignee_id" className="label">Responsável (opcional)</label>
-          <select id="assignee_id" name="assignee_id" className="input" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-            <option value="">Deixar na fila do departamento (todos são avisados)</option>
-            {[...people]
-              .sort((a, b) => Number(b.department === category?.department) - Number(a.department === category?.department) || a.full_name.localeCompare(b.full_name))
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}{p.department ? ` (${DEPARTMENT_LABEL[p.department as keyof typeof DEPARTMENT_LABEL]})` : " (gestão)"}
-                </option>
-              ))}
-          </select>
+          <Select id="assignee_id" name="assignee_id" value={assignee} onChange={setAssignee} searchable
+            options={peopleOptions(people, { empty: "Deixar na fila do departamento", emptyHint: "Todos do departamento são avisados", department: category?.department })} />
         </div>
       </section>
 

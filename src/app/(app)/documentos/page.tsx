@@ -5,6 +5,8 @@ import { AlertTriangle, Plus, Search } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
+import { departmentOptions } from "@/components/ui/options";
 import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import { addDays, daysBetween, dueState, stageLabel, todaySP } from "@/lib/documents";
 import { setDocStatusAction } from "./actions";
@@ -120,10 +122,8 @@ export default async function DocumentsPage(props: PageProps<"/documentos">) {
           <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted" />
           <input name="q" defaultValue={q} placeholder="Buscar pelo nome do cliente" className="input pl-9" aria-label="Buscar documentos por cliente" />
         </div>
-        <select name="departamento" defaultValue={dep ?? ""} className="input w-auto" aria-label="Departamento">
-          <option value="">Todos os departamentos</option>
-          {OPERATIONAL_DEPARTMENTS.map((d) => <option key={d} value={d}>{DEPARTMENT_LABEL[d]}</option>)}
-        </select>
+        <Select name="departamento" size="sm" className="w-56" aria-label="Departamento" defaultValue={dep ?? ""} submitOnChange
+          options={departmentOptions({ all: "Todos os departamentos" })} />
         <button className="btn-secondary">Filtrar</button>
       </form>
 

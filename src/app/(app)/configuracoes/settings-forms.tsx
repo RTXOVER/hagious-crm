@@ -17,6 +17,7 @@ import {
   type Theme,
 } from "@/lib/preferences";
 import { FormMessage } from "@/components/page-header";
+import { Select } from "@/components/ui/select";
 import { applyVisualPreferences } from "@/components/format-provider";
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
@@ -169,39 +170,33 @@ export function RegionSettings({ initial, action }: { initial: Preferences; acti
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="language" className="label">Idioma</label>
-          <select id="language" name="language" className="input" value={draft.language} onChange={(e) => set("language", e.target.value as Preferences["language"])}>
-            {LANGUAGES.map((l) => (
-              <option key={l.value} value={l.value} disabled={!l.available}>
-                {l.label}{l.available ? "" : " — em breve"}
-              </option>
-            ))}
-          </select>
+          <Select id="language" name="language" value={draft.language} onChange={(v) => set("language", v as Preferences["language"])}
+            options={LANGUAGES.map((l) => ({ value: l.value, label: l.label, hint: l.value, badge: l.value.slice(0, 2).toUpperCase(), disabled: !l.available, tag: l.available ? undefined : "Em breve" }))} />
           <p className="mt-1 text-xs text-muted">Por enquanto o sistema está todo em português.</p>
         </div>
         <div>
           <label htmlFor="timezone" className="label">Fuso horário</label>
-          <select id="timezone" name="timezone" className="input" value={draft.timezone} onChange={(e) => set("timezone", e.target.value)}>
-            {TIMEZONES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+          <Select id="timezone" name="timezone" searchable value={draft.timezone} onChange={(v) => set("timezone", v)}
+            options={TIMEZONES.map((t) => {
+              const [city, offset] = t.label.split(" — ");
+              return { value: t.value, label: city, hint: offset ?? t.value, badge: (offset ?? "").replace("UTC", "").trim() || "TZ", group: t.value.startsWith("America/") && t.value !== "America/New_York" ? "Brasil" : "Exterior" };
+            })} />
           <p className="mt-1 text-xs text-muted">Para exibir horários. Os prazos (SLA) seguem o expediente da empresa.</p>
         </div>
         <div>
           <label htmlFor="date_format" className="label">Formato de data</label>
-          <select id="date_format" name="date_format" className="input" value={draft.date_format} onChange={(e) => set("date_format", e.target.value as Preferences["date_format"])}>
-            {DATE_FORMATS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
+          <Select id="date_format" name="date_format" value={draft.date_format} onChange={(v) => set("date_format", v as Preferences["date_format"])}
+            options={DATE_FORMATS.map((d) => ({ value: d.value, label: d.label.split(" (")[0], hint: d.label.match(/\((.*)\)/)?.[1], badge: { dmy: "DMA", mdy: "MDA", ymd: "ISO" }[d.value] }))} />
         </div>
         <div>
           <label htmlFor="time_format" className="label">Formato de hora</label>
-          <select id="time_format" name="time_format" className="input" value={draft.time_format} onChange={(e) => set("time_format", e.target.value as Preferences["time_format"])}>
-            {TIME_FORMATS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+          <Select id="time_format" name="time_format" value={draft.time_format} onChange={(v) => set("time_format", v as Preferences["time_format"])}
+            options={TIME_FORMATS.map((t) => ({ value: t.value, label: t.label.split(" (")[0], hint: t.label.match(/\((.*)\)/)?.[1], badge: t.value === "24h" ? "24" : "12" }))} />
         </div>
         <div>
           <label htmlFor="currency" className="label">Moeda</label>
-          <select id="currency" name="currency" className="input" value={draft.currency} onChange={(e) => set("currency", e.target.value as Preferences["currency"])}>
-            {CURRENCIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
+          <Select id="currency" name="currency" value={draft.currency} onChange={(v) => set("currency", v as Preferences["currency"])}
+            options={CURRENCIES.map((c) => ({ value: c.value, label: c.label.split(" (")[0], hint: c.value, badge: c.label.match(/\((.*)\)/)?.[1] }))} />
           <p className="mt-1 text-xs text-muted">Usada quando o sistema exibir valores (ex.: honorários, na Etapa 5).</p>
         </div>
       </div>

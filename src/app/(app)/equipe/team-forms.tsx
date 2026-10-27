@@ -6,6 +6,7 @@ import { AlertTriangle, CircleCheck, Copy, KeyRound, LoaderCircle, Mail, Trash2,
 import type { ActionState } from "@/lib/auth";
 import { DEPARTMENT_LABEL, ROLE_LABEL } from "@/lib/labels";
 import { Alert, FormMessage } from "@/components/page-header";
+import { Switch } from "@/components/ui/controls";
 import { ChoiceChips, IconField } from "@/components/form-controls";
 import type { CreateUserState } from "./actions";
 
@@ -195,19 +196,15 @@ export function EditMemberForm({
       {isSelf ? (
         <input type="hidden" name="active" value="on" />
       ) : (
-        <label
-          className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
-            active ? "border-line hover:border-brand-500/60" : "border-danger/40 bg-danger-soft"
-          }`}
-        >
-          <input type="checkbox" name="active" checked={active} onChange={(e) => setActive(e.target.checked)} className="mt-1 h-4 w-4 accent-brand-600" />
-          <span>
-            <span className="font-bold">Acesso ativo</span>
-            <span className="block text-sm text-muted">
-              Desmarque para bloquear o login imediatamente. O histórico e as responsabilidades são mantidos.
-            </span>
-          </span>
-        </label>
+        <div className={`rounded-2xl border p-4 transition ${active ? "border-line" : "border-danger/40 bg-danger-soft"}`}>
+          <Switch
+            name="active"
+            checked={active}
+            onChange={setActive}
+            label="Acesso ativo"
+            description="Desligue para bloquear o login imediatamente. O histórico e as responsabilidades são mantidos."
+          />
+        </div>
       )}
 
       <button className="btn-primary w-full py-3" disabled={pending}>
