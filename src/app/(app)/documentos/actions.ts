@@ -221,7 +221,7 @@ export async function saveDocSettingsAction(_prev: ActionState, formData: FormDa
     .update({ reminder_days: days.sort((a, b) => b - a), generate_ahead_days: ahead })
     .eq("id", 1);
   if (error) return { errors: { _form: dbMessage(error) } };
-  revalidatePath("/configuracoes");
+  revalidatePath("/configuracoes/prazos");
   return { ok: true, message: "Lembretes salvos. Valem a partir da próxima verificação." };
 }
 
@@ -256,6 +256,6 @@ export async function saveDocTypeAction(typeId: string | null, _prev: ActionStat
     if (error.code === "23505") return { errors: { name: "Já existe um documento com este nome neste departamento." }, values };
     return { errors: { _form: dbMessage(error) }, values };
   }
-  revalidatePath("/configuracoes");
+  revalidatePath("/configuracoes/prazos");
   return { ok: true, message: typeId ? "Documento atualizado." : "Documento cadastrado." };
 }

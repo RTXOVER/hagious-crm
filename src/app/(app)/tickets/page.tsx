@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
@@ -11,7 +12,6 @@ import {
   PRIORITY_TONE,
   STATUS_LABEL,
   STATUS_TONE,
-  formatDateTime,
   relativeTime,
   slaState,
   ticketNumber,
@@ -30,6 +30,7 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]["key"];
 
 export default async function TicketsPage(props: PageProps<"/tickets">) {
+  const f = await getFormatter();
   const sp = await props.searchParams;
   const view: View = VIEWS.some((v) => v.key === sp.visao) ? (sp.visao as View) : "abertos";
   const dep = OPERATIONAL_DEPARTMENTS.find((d) => d === sp.departamento);
@@ -150,8 +151,8 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
                     <td>{t.assignee?.full_name ?? <span className="text-warn">Sem responsável</span>}</td>
                     <td className="whitespace-nowrap">
                       <Badge tone={sla.tone}>{sla.label}</Badge>
-                      <p className="mt-0.5 text-xs text-muted" title={formatDateTime(t.resolution_due_at)}>
-                        {view === "encerrados" ? formatDateTime(t.closed_at) : `${formatDateTime(t.resolution_due_at)} (${relativeTime(t.resolution_due_at)})`}
+                      <p className="mt-0.5 text-xs text-muted" title={f.dateTime(t.resolution_due_at)}>
+                        {view === "encerrados" ? f.dateTime(t.closed_at) : `${f.dateTime(t.resolution_due_at)} (${relativeTime(t.resolution_due_at)})`}
                       </p>
                     </td>
                     <td><Badge tone={STATUS_TONE[t.status]}>{STATUS_LABEL[t.status]}</Badge></td>

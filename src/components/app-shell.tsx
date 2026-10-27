@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  AlarmClock,
   Bell,
   Settings2,
   Building2,
   CalendarClock,
-  CircleUserRound,
   FileClock,
   LayoutDashboard,
   LogOut,
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { HagiousLogo } from "@/components/logo";
 
-type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; exact?: boolean };
 
 const MAIN_NAV: NavItem[] = [
   { href: "/", label: "Painel", icon: LayoutDashboard },
@@ -30,8 +30,9 @@ const MAIN_NAV: NavItem[] = [
   { href: "/notificacoes", label: "Avisos", icon: Bell },
 ];
 const ADMIN_NAV: NavItem[] = [{ href: "/equipe", label: "Equipe", icon: UsersRound }];
-const MANAGER_NAV: NavItem[] = [{ href: "/configuracoes", label: "Prazos e lembretes", icon: Settings2 }];
-const ACCOUNT_NAV: NavItem[] = [{ href: "/conta", label: "Minha conta", icon: CircleUserRound }];
+const MANAGER_NAV: NavItem[] = [{ href: "/configuracoes/prazos", label: "Prazos e lembretes", icon: AlarmClock }];
+// "exact": /configuracoes/prazos não deve acender também "Configurações"
+const ACCOUNT_NAV: NavItem[] = [{ href: "/configuracoes", label: "Configurações", icon: Settings2, exact: true }];
 
 // Módulos planejados: aparecem desativados para mostrar o que vem a seguir, sem fingir que existem
 const UPCOMING = [
@@ -129,7 +130,7 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="md:hidden"><HagiousLogo markClassName="h-7 w-7" textClassName="text-base" /></div>
+          <div className="md:hidden"><HagiousLogo markClassName="h-6 w-6" textClassName="text-lg" /></div>
           <div className="ml-auto flex items-center gap-3">
             <Link
               href="/notificacoes"
@@ -144,7 +145,7 @@ export function AppShell({
                 </span>
               )}
             </Link>
-            <Link href="/conta" className="group flex items-center gap-3 rounded-xl px-2 py-1 transition hover:bg-surface-2">
+            <Link href="/configuracoes" title="Configurações" className="group flex items-center gap-3 rounded-xl px-2 py-1 transition hover:bg-surface-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-extrabold text-white ring-2 ring-brand-100 transition group-hover:ring-brand-500">
                 {initials}
               </span>
@@ -170,7 +171,7 @@ export function AppShell({
 function Logo() {
   return (
     <Link href="/" className="block px-2" aria-label="Hagious — ir para o painel">
-      <HagiousLogo />
+      <HagiousLogo tone="onDark" />
     </Link>
   );
 }
@@ -180,8 +181,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
-  const { href, label, icon: Icon } = item;
-  const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const { href, label, icon: Icon, exact } = item;
+  const active = href === "/" || exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
       href={href}

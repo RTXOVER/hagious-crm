@@ -55,7 +55,11 @@ type NotificationRow = {
   id: number; user_id: string; ticket_id: string | null; document_id: string | null; kind: string; title: string; body: string | null;
   link: string | null; dedupe_key: string; read_at: string | null; created_at: string;
 };
-type DocumentSettingsRow = { id: number; reminder_days: number[]; generate_ahead_days: number; updated_at: string };
+type UserPreferencesRow = {
+  user_id: string; theme: string; font_scale: string; language: string; date_format: string;
+  time_format: string; timezone: string; currency: string; updated_at: string;
+};
+type DocumentSettingsRow ={ id: number; reminder_days: number[]; generate_ahead_days: number; updated_at: string };
 type DocumentTypeRow = {
   id: string; name: string; department: Department; description: string | null; default_periodicity: DocPeriodicity;
   default_due_day: number; active: boolean; needs_review: boolean; created_at: string; updated_at: string;
@@ -368,6 +372,11 @@ export type Database = {
           { foreignKeyName: "notifications_ticket_id_fkey"; columns: ["ticket_id"]; isOneToOne: false; referencedRelation: "tickets"; referencedColumns: ["id"] },
           { foreignKeyName: "notifications_document_id_fkey"; columns: ["document_id"]; isOneToOne: false; referencedRelation: "client_documents"; referencedColumns: ["id"] },
         ]
+      >;
+      user_preferences: TableDef<
+        UserPreferencesRow,
+        "user_id",
+        [{ foreignKeyName: "user_preferences_user_id_fkey"; columns: ["user_id"]; isOneToOne: true; referencedRelation: "profiles"; referencedColumns: ["id"] }]
       >;
       // ---------- Etapa 3 (documentos) ----------
       document_settings: TableDef<DocumentSettingsRow, "id">;

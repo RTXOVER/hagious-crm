@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -33,9 +34,9 @@ const TABLE_LABEL: Record<string, string> = {
   profiles: "Conta da equipe",
 };
 const ACTION_LABEL: Record<string, string> = { INSERT: "criado", UPDATE: "alterado", DELETE: "removido" };
-const dateTime = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
 
 export default async function DashboardPage(props: PageProps<"/">) {
+  const f = await getFormatter();
   const supabase = await createClient();
   // Perfil, indicadores e histórico em paralelo (cada consulta ao banco leva ~0,3 s)
   const todayIso = todaySP();
@@ -58,7 +59,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
     : { data: null };
 
   const t = dash.totals;
-  const todayRaw = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Sao_Paulo" });
+  const todayRaw = new Date().toLocaleDateString(f.prefs.language, { weekday: "long", day: "numeric", month: "long", timeZone: f.prefs.timezone });
   const today = todayRaw.charAt(0).toUpperCase() + todayRaw.slice(1); // "Segunda-feira, 26 de outubro"
 
   return (
@@ -248,7 +249,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
                           )}
                         </span>
                         <span className="text-xs text-muted">
-                          {h.actor_id ? dash.peopleNames.get(h.actor_id) ?? "Usuário" : "Sistema"} · {dateTime.format(new Date(h.created_at))}
+                          {h.actor_id ? dash.peopleNames.get(h.actor_id) ?? "Usuário" : "Sistema"} · {f.dateTime(h.created_at)}
                         </span>
                       </li>
                     );

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BellRing, CalendarClock, FileText, History, UserRound } from "lucide-react";
@@ -14,11 +15,9 @@ import {
   REMINDER_STATUS_TONE,
   describeRule,
   dueState,
-  formatDate,
   stageLabel,
   todaySP,
 } from "@/lib/documents";
-import { formatDateTime } from "@/lib/tickets";
 import { isUuid } from "@/lib/validation/ids";
 import { changeDueDateAction, setDocResponsibleAction, setDocStatusAction } from "../actions";
 import { DocResponsibleForm, DocStatusPanel, DueDateForm } from "../doc-forms";
@@ -28,6 +27,7 @@ export const metadata: Metadata = { title: "Documento" };
 const FIELD_LABEL: Record<string, string> = { status: "situação", due_date: "vencimento", responsible_id: "responsável", status_note: "observação" };
 
 export default async function DocumentPage(props: PageProps<"/documentos/[id]">) {
+  const f = await getFormatter();
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
   if (!isUuid(id)) notFound();
   const supabase = await createClient();
@@ -78,7 +78,7 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <Badge tone={DOC_STATUS_TONE[doc.status]}>{DOC_STATUS_LABEL[doc.status]}</Badge>
         {doc.status === "pendente" && <Badge tone={st.tone}>{st.label}</Badge>}
-        <span className="text-sm text-muted">Vencimento: <strong className="text-ink tabular-nums">{formatDate(doc.due_date)}</strong></span>
+        <span className="text-sm text-muted">Vencimento: <strong className="text-ink tabular-nums">{f.date(doc.due_date)}</strong></span>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
@@ -87,7 +87,7 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
             <h2 id="situacao" className="mb-4 flex items-center gap-2 text-lg font-extrabold"><FileText className="h-5 w-5 text-muted" /> Situação</h2>
             {doc.status === "recebido" && (
               <p className="mb-4 text-sm">
-                Recebido em <strong>{formatDateTime(doc.received_at)}</strong>
+                Recebido em <strong>{f.dateTime(doc.received_at)}</strong>
                 {doc.received_by && <> por <strong>{nameOf.get(doc.received_by) ?? "usuário removido"}</strong></>}.
               </p>
             )}
@@ -116,7 +116,7 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
                       <tr key={r.id}>
                         <td className="whitespace-nowrap">
                           {stageLabel(r.days_before)}
-                          {r.due_date !== doc.due_date && <p className="text-xs text-muted">venc. anterior {formatDate(r.due_date)}</p>}
+                          {r.due_date !== doc.due_date && <p className="text-xs text-muted">venc. anterior {f.date(r.due_date)}</p>}
                         </td>
                         <td>{CHANNEL_LABEL[r.channel]}</td>
                         <td>
@@ -126,7 +126,7 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
                           {r.attempts > 1 && <p className="text-xs text-muted">{r.attempts} tentativas</p>}
                         </td>
                         <td className="text-sm">{r.recipient ?? "—"}</td>
-                        <td className="text-xs whitespace-nowrap text-muted">{formatDateTime(r.sent_at ?? r.created_at)}</td>
+                        <td className="text-xs whitespace-nowrap text-muted">{f.dateTime(r.sent_at ?? r.created_at)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -169,9 +169,9 @@ export default async function DocumentPage(props: PageProps<"/documentos/[id]">)
                           {h.action === "INSERT" ? "Pendência criada" : h.action === "DELETE" ? "Removida" : `Alterou ${changed.map((k) => FIELD_LABEL[k]).join(", ")}`}
                         </span>
                         {changed.includes("status") && <span className="text-muted"> → {DOC_STATUS_LABEL[newD.status as keyof typeof DOC_STATUS_LABEL]}</span>}
-                        {changed.includes("due_date") && <span className="text-muted"> → {formatDate(String(newD.due_date))}</span>}
+                        {changed.includes("due_date") && <span className="text-muted"> → {f.date(String(newD.due_date))}</span>}
                         <span className="block text-xs text-muted">
-                          {formatDateTime(h.created_at)} · {h.actor_id ? nameOf.get(h.actor_id) ?? "Usuário removido" : "Sistema"}
+                          {f.dateTime(h.created_at)} · {h.actor_id ? nameOf.get(h.actor_id) ?? "Usuário removido" : "Sistema"}
                         </span>
                       </li>
                     );

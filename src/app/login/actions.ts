@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionState } from "@/lib/auth";
+import { clearPreferencesCookie, loadPreferencesFromDb, writePreferencesCookie } from "@/lib/preferences-server";
 
 /** Aceita apenas caminhos internos, evitando redirecionamento para sites externos. */
 function safeNext(value: FormDataEntryValue | null): string {
@@ -31,11 +32,15 @@ export async function signIn(_prev: ActionState, formData: FormData): Promise<Ac
     return { errors: { _form: "Seu acesso está desativado. Procure o administrador." } };
   }
 
+  // Aplica as preferências salvas da pessoa (tema, letra, região) neste navegador
+  await writePreferencesCookie(await loadPreferencesFromDb());
   redirect(safeNext(formData.get("next")));
 }
 
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  // Em computador compartilhado, a próxima pessoa não herda as preferências
+  await clearPreferencesCookie();
   redirect("/login");
 }

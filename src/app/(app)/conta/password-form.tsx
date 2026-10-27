@@ -9,7 +9,7 @@ export function PasswordForm() {
   const err = state.errors ?? {};
 
   return (
-    <form action={action} className="card max-w-md space-y-4 p-6">
+    <form action={action} className="card max-w-md space-y-4 self-start p-6">
       <h2 className="text-lg font-extrabold">Trocar senha</h2>
       <FormMessage state={state} />
       <div>

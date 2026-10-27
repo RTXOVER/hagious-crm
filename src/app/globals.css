@@ -38,12 +38,58 @@
   --color-info-soft: #e8f1fb;
   --color-neutral-soft: #eef2f1;
 
+  /* Logo (versão para fundo claro; o tema escuro troca pela versão clara) */
+  --color-logo-ink: #0e2a21;
+  --color-logo-accent: #1f8a5f;
+
   --shadow-lift: 0 6px 20px -8px rgb(16 35 31 / 0.25);
 }
 
-/* Tema escuro automático (segue a configuração do sistema operacional) */
+/*
+ * Tema escuro: automático (segue o sistema) ou escolhido em Configurações → Visual.
+ * <html data-theme="light|dark"> vem da preferência da pessoa; sem atributo = automático.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink: #e4ecea;
+  --color-muted: #9aaaa5;
+  --color-line: #26312e;
+  --color-canvas: #0d1211;
+  --color-surface: #151c1a;
+  --color-surface-2: #1b2421;
+  --color-link: #6fd3ae;
+  --color-brand-50: #12302a;
+  --color-brand-100: #1d4a3e;
+  --color-brand-500: #2fa17c;
+  --color-brand-600: #1f8a6a;
+  --color-brand-700: #187257;
+  --color-brand-900: #0a1e19;
+  --color-chart: #2fa17c;
+  --color-chart-track: #26312e;
+  --color-ok: #5fd0a8;
+  --color-ok-soft: #12302a;
+  --color-warn: #f2b65a;
+  --color-warn-soft: #33270f;
+  --color-danger: #f08a80;
+  --color-danger-soft: #3a1714;
+  --color-info: #8ab8f0;
+  --color-info-soft: #14253b;
+  --color-neutral-soft: #222b29;
+  --color-logo-ink: #f2f5f4;
+  --color-logo-accent: #3cc48e;
+  --shadow-lift: 0 8px 24px -10px rgb(0 0 0 / 0.6);
+}
+
+/* Tamanho da letra (Configurações → Visual): tudo usa rem, então a tela inteira acompanha */
+html[data-font="sm"] { font-size: 87.5%; }
+html[data-font="lg"] { font-size: 112.5%; }
+html[data-font="xl"] { font-size: 125%; }
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --color-ink: #e4ecea;
     --color-muted: #9aaaa5;
@@ -72,6 +118,8 @@
     --color-info: #8ab8f0;
     --color-info-soft: #14253b;
     --color-neutral-soft: #222b29;
+  --color-logo-ink: #f2f5f4;
+  --color-logo-accent: #3cc48e;
 
     --shadow-lift: 0 8px 24px -10px rgb(0 0 0 / 0.6);
   }

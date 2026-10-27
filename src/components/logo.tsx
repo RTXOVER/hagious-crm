@@ -1,30 +1,56 @@
 /**
- * Marca Hagious: "H" preto com traço amarelo, em quadrado branco com borda amarela.
- * Redesenhada em vetor (SVG) a partir da imagem original, para ficar nítida em qualquer tamanho.
+ * Marca Hagious (versão 2): "H" formado por duas barras arredondadas desniveladas, ligadas por um traço verde,
+ * e o nome "Hagious" com o pingo do "i" em verde. Desenhada em vetor a partir das imagens enviadas
+ * (versões para fundo claro e escuro).
+ *
+ * tone:
+ * - "auto": acompanha o tema (claro/escuro) pelas variáveis --color-logo-*
+ * - "onDark": sempre a versão clara (barra lateral e painel do login, que têm fundo escuro)
  */
-export function HagiousMark({ className = "h-9 w-9", title = "Hagious" }: { className?: string; title?: string }) {
+type Tone = "auto" | "onDark";
+
+const COLORS: Record<Tone, { ink: string; accent: string }> = {
+  auto: { ink: "var(--color-logo-ink)", accent: "var(--color-logo-accent)" },
+  onDark: { ink: "#f2f5f4", accent: "#3cc48e" },
+};
+
+export function HagiousMark({ className = "h-9 w-9", title = "Hagious", tone = "auto" }: { className?: string; title?: string; tone?: Tone }) {
+  const c = COLORS[tone];
   return (
-    <svg viewBox="0 0 458 458" className={className} role="img" aria-label={title}>
-      <rect x="10.5" y="10.5" width="437" height="437" fill="#FFFFFF" stroke="#FCB913" strokeWidth="21" />
-      <rect x="131" y="102" width="52" height="254" fill="#000000" />
-      <rect x="269" y="102" width="52" height="254" fill="#000000" />
-      <path
-        d="M131 245 C 200 232, 268 238, 310 228 C 340 221, 360 205, 392 183"
-        fill="none"
-        stroke="#FCB913"
-        strokeWidth="50"
-        strokeLinecap="butt"
-      />
+    <svg viewBox="0 0 115 126" className={className} role="img" aria-label={title}>
+      <rect x="0" y="30" width="33" height="96" rx="7" fill={c.ink} />
+      <rect x="82" y="0" width="33" height="96" rx="7" fill={c.ink} />
+      <path d="M33 73 L82 41 L82 55 L33 87 Z" fill={c.accent} />
     </svg>
   );
 }
 
-/** Marca + nome, usada na barra lateral e no login. */
-export function HagiousLogo({ markClassName = "h-9 w-9", textClassName = "text-lg" }: { markClassName?: string; textClassName?: string }) {
+/** Marca + nome, usada na barra lateral, no topo (celular) e no login. */
+export function HagiousLogo({
+  markClassName = "h-8 w-8",
+  textClassName = "text-xl",
+  tone = "auto",
+}: {
+  markClassName?: string;
+  textClassName?: string;
+  tone?: Tone;
+}) {
+  const c = COLORS[tone];
   return (
-    <span className="flex items-center gap-2.5">
-      <HagiousMark className={`${markClassName} shrink-0 rounded-[4px]`} />
-      <span className={`font-extrabold tracking-tight ${textClassName}`}>Hagious</span>
+    <span className="flex items-center gap-2.5" aria-label="Hagious" role="img">
+      <HagiousMark className={`${markClassName} shrink-0`} tone={tone} title="" />
+      <span aria-hidden className={`font-extrabold tracking-tight whitespace-nowrap ${textClassName}`} style={{ color: c.ink }}>
+        Hag
+        {/* "i" sem pingo + pingo verde */}
+        <span className="relative inline-block">
+          ı
+          <span
+            className="absolute left-1/2 rounded-full"
+            style={{ background: c.accent, width: "0.26em", height: "0.26em", top: "0.02em", transform: "translateX(-50%)" }}
+          />
+        </span>
+        ous
+      </span>
     </span>
   );
 }

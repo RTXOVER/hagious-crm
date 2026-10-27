@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import { AlertTriangle, ArrowRightLeft, AtSign, Bell, CheckCheck, Clock, FileClock, MessageSquare, Ticket, UserRound } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/page-header";
-import { formatDateTime } from "@/lib/tickets";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "../tickets/actions";
 
 export const metadata: Metadata = { title: "Avisos" };
@@ -26,6 +26,7 @@ const ICON: Record<string, React.ComponentType<{ className?: string }>> = {
 const URGENT = new Set(["prazo_vencido", "primeira_resposta_atrasada", "escalonamento", "documento_atrasado"]);
 
 export default async function NotificationsPage() {
+  const f = await getFormatter();
   const supabase = await createClient();
   const [profile, { data: items }] = await Promise.all([
     requireProfile(),
@@ -64,7 +65,7 @@ export default async function NotificationsPage() {
                 <div className="min-w-0 flex-1">
                   <p className={`text-sm ${n.read_at ? "" : "font-bold"}`}>{n.title}</p>
                   {n.body && <p className="text-sm text-muted">{n.body}</p>}
-                  <p className="mt-0.5 text-xs text-muted">{formatDateTime(n.created_at)}</p>
+                  <p className="mt-0.5 text-xs text-muted">{f.dateTime(n.created_at)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {n.link && <Link href={n.link} className="btn-secondary px-3 py-1.5 text-xs">Abrir</Link>}

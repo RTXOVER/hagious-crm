@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import { AlertTriangle, Plus, Search } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
 import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
-import { addDays, daysBetween, dueState, formatDate, stageLabel, todaySP } from "@/lib/documents";
-import { formatDateTime } from "@/lib/tickets";
+import { addDays, daysBetween, dueState, stageLabel, todaySP } from "@/lib/documents";
 import { setDocStatusAction } from "./actions";
 import { QuickReceive } from "./doc-forms";
 
@@ -22,6 +22,7 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]["key"];
 
 export default async function DocumentsPage(props: PageProps<"/documentos">) {
+  const f = await getFormatter();
   const sp = await props.searchParams;
   const view: View = VIEWS.some((v) => v.key === sp.visao) ? (sp.visao as View) : "pendentes";
   const dep = OPERATIONAL_DEPARTMENTS.find((d) => d === sp.departamento);
@@ -189,11 +190,11 @@ export default async function DocumentsPage(props: PageProps<"/documentos">) {
                       {d.client.status !== "ativo" && <p className="text-xs text-warn">Cliente {d.client.status}: sem cobrança automática</p>}
                     </td>
                     <td className="whitespace-nowrap">
-                      <span className="tabular-nums">{formatDate(d.due_date)}</span>
+                      <span className="tabular-nums">{f.date(d.due_date)}</span>
                       <p className="mt-0.5"><Badge tone={st.tone}>{st.label}</Badge></p>
                     </td>
                     <td className="text-xs text-muted">
-                      {view === "recebidos" ? `Recebido ${formatDateTime(d.received_at)}` : last ? `${stageLabel(last.days_before)} · ${formatDateTime(last.sent_at)}` : "—"}
+                      {view === "recebidos" ? `Recebido ${f.dateTime(d.received_at)}` : last ? `${stageLabel(last.days_before)} · ${f.dateTime(last.sent_at)}` : "—"}
                     </td>
                     <td className="text-sm">{d.responsible_id ? nameOf.get(d.responsible_id) ?? "—" : <span className="text-muted">Responsável do cliente</span>}</td>
                     <td className="text-right">

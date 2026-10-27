@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { FileClock, MessageCircle, Plus, Ticket } from "lucide-react";
-import { DOC_STATUS_LABEL, addDays, describeRule, dueState, formatDate, todaySP } from "@/lib/documents";
+import { DOC_STATUS_LABEL, addDays, describeRule, dueState, todaySP } from "@/lib/documents";
 import { deleteRequirementAction, saveRequirementAction, setDocStatusAction, toggleRequirementAction } from "../../documentos/actions";
 import { QuickReceive, RequirementForm } from "../../documentos/doc-forms";
 import { OPEN_STATUSES, STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_TONE as TICKET_STATUS_TONE, slaState, ticketNumber } from "@/lib/tickets";
@@ -31,13 +32,6 @@ import { AddServiceForm, ConfirmButton, ResponsiblesForm } from "./detail-forms"
 
 export const metadata: Metadata = { title: "Cliente" };
 
-const dateFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
-const dateTimeFmt = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: "America/Sao_Paulo",
-  dateStyle: "short",
-  timeStyle: "short",
-});
-const fmtDate = (d: string | null) => (d ? dateFmt.format(new Date(`${d}T12:00:00`)) : "—");
 
 const TABLE_LABEL: Record<string, string> = {
   clients: "Cadastro",
@@ -48,6 +42,7 @@ const TABLE_LABEL: Record<string, string> = {
 const ACTION_LABEL: Record<string, string> = { INSERT: "criado", UPDATE: "alterado", DELETE: "removido" };
 
 export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
+  const f = await getFormatter();
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
   if (!isUuid(id)) notFound();
 
@@ -213,7 +208,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                     <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
                       <span>
                         <Link href={`/documentos/${d.id}`} className="link">{d.title}</Link>
-                        <span className="ml-2 text-xs text-muted tabular-nums">vence {formatDate(d.due_date)}</span>
+                        <span className="ml-2 text-xs text-muted tabular-nums">vence {f.date(d.due_date)}</span>
                       </span>
                       <span className="flex items-center gap-2">
                         <Badge tone={st.tone}>{st.label}</Badge>
@@ -228,7 +223,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
             )}
             {recentDone.length > 0 && (
               <p className="-mt-3 mb-5 text-xs text-muted">
-                Recentes: {recentDone.map((d) => `${d.title} (${formatDate(d.due_date)}): ${DOC_STATUS_LABEL[d.status].toLowerCase()}`).join(" · ")}
+                Recentes: {recentDone.map((d) => `${d.title} (${f.date(d.due_date)}): ${DOC_STATUS_LABEL[d.status].toLowerCase()}`).join(" · ")}
               </p>
             )}
 
@@ -248,7 +243,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                         <p className="text-muted">
                           {describeRule(r.periodicity, r.due_day, r.first_month)}
                           {r.responsible_id && ` · cobra: ${nameOf.get(r.responsible_id) ?? "—"}`}
-                          {r.ends_on && ` · até ${formatDate(r.ends_on)}`}
+                          {r.ends_on && ` · até ${f.date(r.ends_on)}`}
                         </p>
                         {r.notes && <p className="text-xs text-muted">{r.notes}</p>}
                       </div>
@@ -305,7 +300,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               <Item term="E-mail" value={client.email} />
               <Item term="Telefone" value={formatPhone(client.phone)} />
-              <Item term="Cliente desde" value={fmtDate(client.client_since)} />
+              <Item term="Cliente desde" value={f.date(client.client_since)} />
               <Item term="Endereço" value={client.address} />
             </dl>
             {client.notes && (
@@ -342,7 +337,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                         <p className="mt-1 text-xs">
                           {c.whatsapp_opt_in ? (
                             <span className="text-ok">
-                              Autorizou mensagens por WhatsApp em {dateTimeFmt.format(new Date(c.whatsapp_opt_in_at!))}
+                              Autorizou mensagens por WhatsApp em {f.dateTime(c.whatsapp_opt_in_at!)}
                             </span>
                           ) : (
                             <span className="text-warn">Sem autorização registrada para mensagens automáticas</span>
@@ -381,8 +376,8 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                         {s.description} <Badge tone={s.active ? "green" : "gray"}>{s.active ? "Ativo" : "Encerrado"}</Badge>
                       </p>
                       <p className="text-muted">
-                        {DEPARTMENT_LABEL[s.department]} · início {fmtDate(s.started_on)}
-                        {s.ended_on && ` · fim ${fmtDate(s.ended_on)}`}
+                        {DEPARTMENT_LABEL[s.department]} · início {f.date(s.started_on)}
+                        {s.ended_on && ` · fim ${f.date(s.ended_on)}`}
                       </p>
                     </div>
                     {manager && s.active && (
@@ -426,7 +421,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                       <span className="font-semibold">{TABLE_LABEL[h.table_name] ?? h.table_name}</span>{" "}
                       {ACTION_LABEL[h.action] ?? h.action}
                       <span className="block text-xs text-muted">
-                        {dateTimeFmt.format(new Date(h.created_at))} · {h.actor_id ? nameOf.get(h.actor_id) ?? "Usuário removido" : "Sistema"}
+                        {f.dateTime(h.created_at)} · {h.actor_id ? nameOf.get(h.actor_id) ?? "Usuário removido" : "Sistema"}
                       </span>
                     </li>
                   ))}

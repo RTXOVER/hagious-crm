@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRightLeft, Building2, Clock, History, PauseCircle, Tag, UserRound } from "lucide-react";
@@ -13,7 +14,6 @@ import {
   PRIORITY_TONE,
   STATUS_LABEL,
   STATUS_TONE,
-  formatDateTime,
   formatSla,
   relativeTime,
   firstResponseLate,
@@ -28,6 +28,7 @@ export const metadata: Metadata = { title: "Ticket" };
 type EventData = { from?: string; to?: string; assignee?: string | null };
 
 export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
+  const f = await getFormatter();
   const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
   if (!isUuid(id)) notFound();
 
@@ -68,7 +69,7 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
               </Link>
             )}
             <span className="inline-flex items-center gap-1"><Tag className="h-3.5 w-3.5" /> {t.category?.name}</span>
-            <span>Aberto em {formatDateTime(t.created_at)} por {t.created_by ? nameOf.get(t.created_by) ?? "—" : "—"} · via {ORIGIN_LABEL[t.origin]}</span>
+            <span>Aberto em {f.dateTime(t.created_at)} por {t.created_by ? nameOf.get(t.created_by) ?? "—" : "—"} · via {ORIGIN_LABEL[t.origin]}</span>
           </span>
         }
         actions={<Link href="/tickets" className="btn-secondary">Voltar</Link>}
@@ -99,7 +100,7 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
 
           {(t.status === "concluido" || t.status === "cancelado") && (
             <Alert tone={t.status === "concluido" ? "ok" : "warn"}>
-              <strong>{t.status === "concluido" ? "Concluído" : "Cancelado"}</strong> em {formatDateTime(t.closed_at)} por{" "}
+              <strong>{t.status === "concluido" ? "Concluído" : "Cancelado"}</strong> em {f.dateTime(t.closed_at)} por{" "}
               {t.closed_by ? nameOf.get(t.closed_by) ?? "—" : "—"}: {t.resolution_note ?? t.cancel_reason}
             </Alert>
           )}
@@ -124,7 +125,7 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
                     <p className="text-sm">
                       <span className="font-semibold">{who}</span>{" "}
                       {isComment ? (e.kind === "resposta" ? <Badge tone="green">Resposta ao cliente</Badge> : <span className="text-muted">comentou</span>) : <span className="text-muted">{text}</span>}
-                      <span className="ml-2 text-xs text-muted">{formatDateTime(e.created_at)}</span>
+                      <span className="ml-2 text-xs text-muted">{f.dateTime(e.created_at)}</span>
                     </p>
                     {e.body && (
                       <p className={`mt-1 rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${isComment ? "bg-surface-2" : "text-muted italic"}`}>
@@ -153,33 +154,33 @@ export default async function TicketPage(props: PageProps<"/tickets/[id]">) {
                 <dt className="text-xs font-bold tracking-wide text-muted uppercase">Primeira resposta</dt>
                 <dd>
                   {t.first_responded_at ? (
-                    <>Respondido em {formatDateTime(t.first_responded_at)}{" "}
+                    <>Respondido em {f.dateTime(t.first_responded_at)}{" "}
                       {t.first_response_due_at && new Date(t.first_responded_at) <= new Date(t.first_response_due_at)
                         ? <Badge tone="green">no prazo</Badge> : <Badge tone="red">com atraso</Badge>}
                     </>
                   ) : (
-                    <>Até {formatDateTime(t.first_response_due_at)} <span className="text-muted">({relativeTime(t.first_response_due_at)})</span> {frLate && <Badge tone="red">atrasada</Badge>}</>
+                    <>Até {f.dateTime(t.first_response_due_at)} <span className="text-muted">({relativeTime(t.first_response_due_at)})</span> {frLate && <Badge tone="red">atrasada</Badge>}</>
                   )}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs font-bold tracking-wide text-muted uppercase">Resolução</dt>
                 <dd>
-                  Até {formatDateTime(t.resolution_due_at)} {open && <span className="text-muted">({relativeTime(t.resolution_due_at)})</span>}
+                  Até {f.dateTime(t.resolution_due_at)} {open && <span className="text-muted">({relativeTime(t.resolution_due_at)})</span>}
                   <span className="block text-xs text-muted">Regra: {t.category ? formatSla(t.category.resolution_value, t.category.resolution_unit) : "—"}</span>
                 </dd>
               </div>
               {open && t.risk_at && (
                 <div>
                   <dt className="text-xs font-bold tracking-wide text-muted uppercase">Alerta preventivo</dt>
-                  <dd>{formatDateTime(t.risk_at)}</dd>
+                  <dd>{f.dateTime(t.risk_at)}</dd>
                 </div>
               )}
               {(t.sla_paused_at || t.sla_paused_minutes > 0) && (
                 <div className="flex items-start gap-2 rounded-xl bg-surface-2 p-3">
                   <PauseCircle className="mt-0.5 h-4 w-4 text-muted" />
                   <span>
-                    {t.sla_paused_at ? <>Pausado desde {formatDateTime(t.sla_paused_at)} (aguardando cliente). </> : null}
+                    {t.sla_paused_at ? <>Pausado desde {f.dateTime(t.sla_paused_at)} (aguardando cliente). </> : null}
                     {t.sla_paused_minutes > 0 && <>Já pausado por {Math.round(t.sla_paused_minutes / 6) / 10} h úteis; o prazo foi estendido.</>}
                   </span>
                 </div>

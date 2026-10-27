@@ -4,7 +4,8 @@ import { startTransition, useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { Building2, Clock, LoaderCircle, Search, Send, X } from "lucide-react";
 import { DEPARTMENT_LABEL } from "@/lib/labels";
-import { ORIGIN_LABEL, PRIORITY_LABEL, formatDateTime, formatSla } from "@/lib/tickets";
+import { ORIGIN_LABEL, PRIORITY_LABEL, formatSla } from "@/lib/tickets";
+import { useFormat } from "@/components/format-provider";
 import { Alert } from "@/components/page-header";
 import { ChoiceChips, IconField } from "@/components/form-controls";
 import { createTicketAction } from "../actions";
@@ -26,6 +27,7 @@ export function TicketForm({
   people: { id: string; full_name: string; department: string | null }[];
   initialClientId?: string;
 }) {
+  const f = useFormat();
   const [state, dispatch, pending] = useActionState(createTicketAction, {});
   const [clientId, setClientId] = useState(initialClientId ?? "");
   const [clientQuery, setClientQuery] = useState("");
@@ -139,7 +141,7 @@ export function TicketForm({
               <span className="flex items-center gap-2 text-muted"><LoaderCircle className="h-4 w-4 animate-spin" /> Calculando prazos…</span>
             ) : preview ? (
               <span>
-                Se aberto agora: <strong>1ª resposta até {formatDateTime(preview.firstResponse)}</strong> · <strong>resolução até {formatDateTime(preview.resolution)}</strong>
+                Se aberto agora: <strong>1ª resposta até {f.dateTime(preview.firstResponse)}</strong> · <strong>resolução até {f.dateTime(preview.resolution)}</strong>
                 <span className="block text-xs text-muted">Considera expediente, fins de semana e feriados cadastrados.</span>
               </span>
             ) : (
