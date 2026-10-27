@@ -8,9 +8,9 @@ Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendi
 
 | Etapa | Conteúdo | Situação |
 |---|---|---|
-| 1. Base | Banco, login, perfis, permissões, auditoria | Código pronto; **aguardando banco conectado para teste real** |
-| 2. Clientes | Cadastro, contatos, serviços, responsáveis, histórico | Código pronto; **aguardando banco conectado para teste real** |
-| 3. Operação | Tickets, SLA, encaminhamentos | Código pronto e testado em banco local; **aguardando aplicação no Supabase** |
+| 1. Base | Banco, login, perfis, permissões, auditoria | Pronto e testado no Supabase (São Paulo) |
+| 2. Clientes | Cadastro, contatos, serviços, responsáveis, histórico | Pronto e testado no Supabase (São Paulo) |
+| 3. Operação | Tickets, SLA, encaminhamentos, alertas | Pronto e testado no Supabase (banco e telas) |
 | 3. Operação | Controle de documentos | Não iniciado |
 | 4. Integrações | WhatsApp oficial (Cloud API), lembretes, escalonamento | Não iniciado |
 | 5. Gestão | Dashboard e validação final | Não iniciado |
@@ -77,7 +77,8 @@ npm run lint
 npm run build
 ```
 
-`test:db` cria usuários e um cliente marcados como fictícios e apaga tudo ao final.
+`test:db` cria usuários, um cliente e tickets marcados como fictícios e apaga tudo ao final
+(inclusive avisos e registros de histórico gerados por eles).
 
 ## Estrutura
 

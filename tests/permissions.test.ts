@@ -201,4 +201,143 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
     expect(await canSee("atend")).toBe(false);
     await service.from("profiles").update({ active: true }).eq("id", users.atend.id);
   });
+
+  // ---------------- Tickets ----------------
+  describe("Tickets", () => {
+    let ticketId = "";
+
+    const categoryId = async (name: string, department: Dep) => {
+      const { data } = await service.from("ticket_categories").select("id").eq("name", name).eq("department", department).single();
+      return data!.id;
+    };
+    const sees = async (key: string, id = ticketId) => {
+      const { data } = await users[key].client.from("tickets").select("id").eq("id", id);
+      return (data?.length ?? 0) > 0;
+    };
+
+    it("atendimento abre ticket e o banco calcula os prazos (ignora valores forjados)", async () => {
+      const { data, error } = await users.atend.client
+        .from("tickets")
+        .insert({
+          client_id: clientId,
+          title: `Certidão fictícia ${tag}`,
+          category_id: await categoryId("Emissão de certidão simples", "fiscal"),
+          department: "fiscal",
+          origin: "whatsapp",
+          resolution_due_at: "2099-01-01T00:00:00Z",
+          created_at: "2020-01-01T00:00:00Z",
+          status: "concluido",
+        })
+        .select("*")
+        .single();
+      expect(error).toBeNull();
+      ticketId = data!.id;
+      expect(data!.status).toBe("aberto");
+      expect(data!.created_by).toBe(users.atend.id);
+      expect(Math.abs(Date.parse(data!.created_at) - Date.now())).toBeLessThan(5 * 60_000);
+      expect(data!.resolution_due_at?.startsWith("2099")).toBe(false);
+      expect(Date.parse(data!.resolution_due_at!)).toBeGreaterThan(Date.parse(data!.created_at));
+    });
+
+    it("só vê o ticket quem tem relação com ele", async () => {
+      expect(await sees("gestor")).toBe(true);
+      expect(await sees("fiscal")).toBe(true);
+      expect(await sees("dp")).toBe(false);
+      expect(await sees("contabil")).toBe(false);
+    });
+
+    it("prazo não pode ser alterado à mão", async () => {
+      const before = await service.from("tickets").select("resolution_due_at").eq("id", ticketId).single();
+      await users.fiscal.client.from("tickets").update({ resolution_due_at: "2099-01-01T00:00:00Z" }).eq("id", ticketId);
+      const after = await service.from("tickets").select("resolution_due_at").eq("id", ticketId).single();
+      expect(after.data!.resolution_due_at).toBe(before.data!.resolution_due_at);
+    });
+
+    it("mudar departamento só por encaminhamento com motivo", async () => {
+      const direct = await users.fiscal.client.from("tickets").update({ department: "contabil" }).eq("id", ticketId);
+      expect(direct.error).not.toBeNull();
+
+      const noReason = await users.fiscal.client.rpc("ticket_forward", {
+        p_ticket: ticketId, p_department: "contabil", p_assignee: null, p_reason: " ",
+      });
+      expect(noReason.error).not.toBeNull();
+
+      const ok = await users.fiscal.client.rpc("ticket_forward", {
+        p_ticket: ticketId, p_department: "contabil", p_assignee: users.contabil.id, p_reason: "Envolve alteração contratual",
+      });
+      expect(ok.error).toBeNull();
+      expect(await sees("contabil")).toBe(true);
+      // Quem encaminhou continua acompanhando
+      expect(await sees("fiscal")).toBe(true);
+
+      const { data: ev } = await service.from("ticket_events").select("body, actor_id").eq("ticket_id", ticketId).eq("kind", "encaminhamento");
+      expect(ev?.[0]?.body).toBe("Envolve alteração contratual");
+      expect(ev?.[0]?.actor_id).toBe(users.fiscal.id);
+    });
+
+    it("menção avisa só a pessoa mencionada e libera o acompanhamento", async () => {
+      const { error } = await users.atend.client.from("ticket_events").insert({
+        ticket_id: ticketId, kind: "comentario", actor_id: users.atend.id, body: "Pode olhar a folha?", mentions: [users.dp.id],
+      });
+      expect(error).toBeNull();
+      const { data: mine } = await users.dp.client.from("notifications").select("kind").eq("ticket_id", ticketId);
+      expect(mine?.some((n) => n.kind === "mencao")).toBe(true);
+      const { data: others } = await users.fiscal.client.from("notifications").select("id").eq("user_id", users.dp.id);
+      expect(others ?? []).toHaveLength(0);
+      expect(await sees("dp")).toBe(true);
+
+      const forged = await users.dp.client.from("ticket_events").insert({
+        ticket_id: ticketId, kind: "comentario", actor_id: users.atend.id, body: "Assinado por outra pessoa",
+      });
+      expect(forged.error).not.toBeNull();
+    });
+
+    it("concluir exige descrição e só a gestão reabre", async () => {
+      const noNote = await users.contabil.client.rpc("ticket_set_status", { p_ticket: ticketId, p_status: "concluido", p_note: "" });
+      expect(noNote.error).not.toBeNull();
+      const done = await users.contabil.client.rpc("ticket_set_status", {
+        p_ticket: ticketId, p_status: "concluido", p_note: "Certidão emitida e enviada",
+      });
+      expect(done.error).toBeNull();
+
+      const reopenColab = await users.contabil.client.rpc("ticket_set_status", { p_ticket: ticketId, p_status: "em_andamento" });
+      expect(reopenColab.error).not.toBeNull();
+      const reopenGestor = await users.gestor.client.rpc("ticket_set_status", { p_ticket: ticketId, p_status: "em_andamento", p_note: "Cliente pediu ajuste" });
+      expect(reopenGestor.error).toBeNull();
+    });
+
+    it("prazo vencido avisa responsável e gestão uma vez só", async () => {
+      // Ticket aberto há 10 dias (só a chave de serviço pode definir a data, como numa importação)
+      const { data: old, error } = await service
+        .from("tickets")
+        .insert({
+          client_id: clientId,
+          title: `Atrasado fictício ${tag}`,
+          category_id: await categoryId("Emissão de certidão simples", "fiscal"),
+          assignee_id: users.fiscal.id,
+          created_at: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+        })
+        .select("id")
+        .single();
+      expect(error).toBeNull();
+
+      await service.rpc("sla_sweep");
+      await service.rpc("sla_sweep");
+
+      const { data: n } = await service.from("notifications").select("user_id, kind").eq("ticket_id", old!.id);
+      const count = (user: string, kind: string) => n!.filter((x) => x.user_id === user && x.kind === kind).length;
+      expect(count(users.fiscal.id, "prazo_vencido")).toBe(1);
+      expect(count(users.gestor.id, "escalonamento")).toBeGreaterThanOrEqual(1);
+      // Sem duplicar: no máximo 1 aviso de escalonamento por tipo (1ª resposta + prazo)
+      expect(count(users.gestor.id, "escalonamento")).toBeLessThanOrEqual(2);
+
+      const { data: t } = await service.from("tickets").select("overdue_notified_at").eq("id", old!.id).single();
+      expect(t!.overdue_notified_at).not.toBeNull();
+    });
+
+    it("usuário não lê avisos de outra pessoa nem marca como lidos", async () => {
+      const r = await users.fiscal.client.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", users.gestor.id).select("id");
+      expect(r.data ?? []).toHaveLength(0);
+    });
+  });
 });
