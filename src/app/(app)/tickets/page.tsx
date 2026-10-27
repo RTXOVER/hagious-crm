@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { getFormatter } from "@/lib/preferences-server";
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge } from "@/components/page-header";
 import { Select } from "@/components/ui/select";
-import { departmentOptions } from "@/components/ui/options";
+import { departmentOptions, peopleOptions } from "@/components/ui/options";
+import { isUuid } from "@/lib/validation/ids";
+import { isRealDate } from "@/lib/validation/schemas";
 import { DEPARTMENT_LABEL, OPERATIONAL_DEPARTMENTS } from "@/lib/labels";
 import {
   OPEN_STATUSES,
@@ -29,7 +31,9 @@ const VIEWS = [
   { key: "atrasados", label: "Atrasados" },
   { key: "sem_responsavel", label: "Sem responsável" },
   { key: "encerrados", label: "Encerrados" },
+  { key: "todos", label: "Todos" },
 ] as const;
+const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && isRealDate(v) ? v : undefined);
 type View = (typeof VIEWS)[number]["key"];
 
 export default async function TicketsPage(props: PageProps<"/tickets">) {
@@ -38,6 +42,11 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
   const view: View = VIEWS.some((v) => v.key === sp.visao) ? (sp.visao as View) : "abertos";
   const dep = OPERATIONAL_DEPARTMENTS.find((d) => d === sp.departamento);
   const q = typeof sp.q === "string" ? sp.q.trim().slice(0, 100) : "";
+  // Filtros usados pelos links do painel de indicadores
+  const resp = typeof sp.responsavel === "string" && (isUuid(sp.responsavel) || sp.responsavel === "nenhum") ? sp.responsavel : undefined;
+  const cat = typeof sp.categoria === "string" && isUuid(sp.categoria) ? sp.categoria : undefined;
+  const from = day(sp.de);
+  const to = day(sp.ate);
   const now = nowIso();
 
   const supabase = await createClient();
@@ -53,6 +62,8 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
 
   if (view === "encerrados") {
     query = query.in("status", ["concluido", "cancelado"]).order("closed_at", { ascending: false });
+  } else if (view === "todos") {
+    query = query.order("created_at", { ascending: false });
   } else {
     query = query.in("status", [...OPEN_STATUSES]).order("resolution_due_at", { ascending: true });
     if (view === "meus") query = query.eq("assignee_id", profile.id);
@@ -62,17 +73,32 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
     if (view === "risco") query = query.neq("status", "aguardando_cliente").lte("risk_at", now).gte("resolution_due_at", now);
   }
   if (dep) query = query.eq("department", dep);
+  if (resp === "nenhum") query = query.is("assignee_id", null);
+  else if (resp) query = query.eq("assignee_id", resp);
+  if (cat) query = query.eq("category_id", cat);
+  // Período: encerrados pela data de encerramento; as demais visões pela data de abertura (fuso de Brasília)
+  const periodCol = view === "encerrados" ? "closed_at" : "created_at";
+  if (from) query = query.gte(periodCol, `${from}T00:00:00-03:00`);
+  if (to) query = query.lte(periodCol, `${to}T23:59:59.999-03:00`);
   if (q) {
     const num = Number(q.replace(/^#/, ""));
     const safe = q.replace(/[,()*%\\:"]/g, " ").trim();
     query = Number.isInteger(num) && num > 0 ? query.eq("number", num) : query.ilike("title", `%${safe}%`);
   }
 
-  const { data: tickets, count, error } = await query;
+  const [{ data: tickets, count, error }, people, category] = await Promise.all([
+    query,
+    supabase.from("profiles").select("id, full_name, department, active").order("full_name"),
+    cat ? supabase.from("ticket_categories").select("name").eq("id", cat).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
   const href = (v: View) => {
     const p = new URLSearchParams();
     if (v !== "abertos") p.set("visao", v);
     if (dep) p.set("departamento", dep);
+    if (resp) p.set("responsavel", resp);
+    if (cat) p.set("categoria", cat);
+    if (from) p.set("de", from);
+    if (to) p.set("ate", to);
     if (q) p.set("q", q);
     const s = p.toString();
     return s ? `/tickets?${s}` : "/tickets";
@@ -109,8 +135,29 @@ export default async function TicketsPage(props: PageProps<"/tickets">) {
         </div>
         <Select name="departamento" size="sm" className="w-56" aria-label="Departamento" defaultValue={dep ?? ""} submitOnChange
           options={departmentOptions({ all: "Todos os departamentos" })} />
+        {view !== "meus" && view !== "sem_responsavel" && (
+          <Select name="responsavel" size="sm" className="w-56" aria-label="Responsável" defaultValue={resp ?? ""} submitOnChange searchable
+            options={[...peopleOptions((people.data ?? []).filter((p) => p.active || p.id === resp), { empty: "Todos os responsáveis" }), { value: "nenhum", label: "Sem responsável" }]} />
+        )}
+        {cat && <input type="hidden" name="categoria" value={cat} />}
+        {from && <input type="hidden" name="de" value={from} />}
+        {to && <input type="hidden" name="ate" value={to} />}
         <button className="btn-secondary">Filtrar</button>
       </form>
+
+      {(cat || from || to) && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">Filtros do painel:</span>
+          {cat && <Badge tone="blue">Tipo: {category.data?.name ?? "—"}</Badge>}
+          {(from || to) && (
+            <Badge tone="blue">
+              {view === "encerrados" ? "Encerrados" : "Abertos"} {from && to ? `de ${f.date(from)} a ${f.date(to)}` : from ? `desde ${f.date(from)}` : `até ${f.date(to)}`}
+            </Badge>
+          )}
+          <Link href={(() => { const p = new URLSearchParams(); if (view !== "abertos") p.set("visao", view); if (dep) p.set("departamento", dep); if (resp) p.set("responsavel", resp); const x = p.toString(); return x ? `/tickets?${x}` : "/tickets"; })()}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-ink"><X className="h-3.5 w-3.5" /> Limpar</Link>
+        </div>
+      )}
 
       {error ? (
         <p role="alert" className="card p-6 text-sm text-danger">Não foi possível carregar os tickets. Recarregue a página.</p>

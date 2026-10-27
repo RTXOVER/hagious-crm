@@ -20,7 +20,7 @@ type DocType = { id: string; name: string; department: Dep; default_periodicity:
 
 /** Envio manual (sem apagar o que foi digitado em caso de erro). Depois de salvar com sucesso,
  *  'version' muda: formulários de CRIAR usam key={version} para voltar em branco. */
-function useManualAction(action: Action, onSuccess?: () => void) {
+export function useManualAction(action: Action, onSuccess?: () => void) {
   const [version, setVersion] = useState(0);
   const [state, dispatch, pending] = useActionState(async (prev: ActionState, fd: FormData) => {
     const r = await action(prev, fd);

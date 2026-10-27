@@ -8,7 +8,8 @@ import {
   Bell,
   Settings2,
   Building2,
-  CalendarClock,
+  HeartHandshake,
+  ChartColumn,
   FileClock,
   LayoutDashboard,
   LogOut,
@@ -29,6 +30,8 @@ const MAIN_NAV: NavItem[] = [
   { href: "/tickets", label: "Tickets", icon: Ticket },
   { href: "/documentos", label: "Documentos", icon: FileClock },
   { href: "/conversas", label: "Conversas", icon: MessagesSquare },
+  { href: "/sucesso", label: "Sucesso do cliente", icon: HeartHandshake },
+  { href: "/indicadores", label: "Indicadores", icon: ChartColumn },
   { href: "/notificacoes", label: "Avisos", icon: Bell },
 ];
 const ADMIN_NAV: NavItem[] = [{ href: "/equipe", label: "Equipe", icon: UsersRound }];
@@ -36,10 +39,6 @@ const MANAGER_NAV: NavItem[] = [{ href: "/configuracoes/prazos", label: "Prazos 
 // "exact": /configuracoes/prazos não deve acender também "Configurações"
 const ACCOUNT_NAV: NavItem[] = [{ href: "/configuracoes", label: "Configurações", icon: Settings2, exact: true }];
 
-// Módulos planejados: aparecem desativados para mostrar o que vem a seguir, sem fingir que existem
-const UPCOMING = [
-  { label: "Sucesso do cliente", icon: CalendarClock, stage: "Etapa 5" },
-];
 
 export function AppShell({
   user,
@@ -91,18 +90,6 @@ export function AppShell({
       )}
       <SectionTitle>Conta</SectionTitle>
       {ACCOUNT_NAV.map((i) => <NavLink key={i.href} item={i} pathname={pathname} />)}
-      <SectionTitle>Em breve</SectionTitle>
-      {UPCOMING.map(({ label, icon: Icon, stage }) => (
-        <span
-          key={label}
-          className="flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-white/35"
-          title={`Disponível na ${stage}`}
-        >
-          <Icon className="h-4 w-4" />
-          <span className="flex-1">{label}</span>
-          <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/50">{stage}</span>
-        </span>
-      ))}
     </nav>
   );
 

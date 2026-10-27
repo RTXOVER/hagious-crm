@@ -159,3 +159,55 @@ export function Meter({ value, total, label }: { value: number; total: number; l
     </div>
   );
 }
+
+type RateDatum = { key: string; label: string; part: number; total: number; href?: string };
+
+/**
+ * Percentual por categoria (ex.: prazo cumprido por departamento). Trilho + preenchimento da cor única do gráfico;
+ * o número fica em cor de texto ao lado, com a base ("8 de 10") para não esconder amostras pequenas.
+ */
+export function RateList({ data, labelHeader, partHeader, totalHeader }: { data: RateDatum[]; labelHeader: string; partHeader: string; totalHeader: string }) {
+  return (
+    <div>
+      <ul className="space-y-3">
+        {data.map((d) => {
+          const pct = d.total ? Math.round((d.part / d.total) * 100) : null;
+          const row = (
+            <span className="group relative flex items-center gap-3" aria-label={`${d.label}: ${pct === null ? "sem base" : `${pct}% (${d.part} de ${d.total})`}`}>
+              <span className="w-36 shrink-0 truncate text-sm text-muted sm:w-44" title={d.label}>{d.label}</span>
+              <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-chart-track">
+                <span className="absolute inset-y-0 left-0 rounded-full bg-chart transition-[width] duration-500 group-hover:brightness-110" style={{ width: `${pct ?? 0}%` }} />
+              </span>
+              <span className="w-28 shrink-0 text-right text-sm tabular-nums">
+                {pct === null ? <span className="text-muted">sem base</span> : <><strong>{pct}%</strong> <span className="text-xs text-muted">{d.part}/{d.total}</span></>}
+              </span>
+            </span>
+          );
+          return (
+            <li key={d.key}>
+              {d.href ? <Link href={d.href} className="block rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-500">{row}</Link> : row}
+            </li>
+          );
+        })}
+      </ul>
+      <details className="mt-4 text-sm">
+        <summary className="cursor-pointer text-xs font-semibold text-muted hover:text-ink">Ver como tabela</summary>
+        <table className="table-base mt-2">
+          <thead>
+            <tr><th>{labelHeader}</th><th className="text-right">{partHeader}</th><th className="text-right">{totalHeader}</th><th className="text-right">%</th></tr>
+          </thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.key}>
+                <td>{d.label}</td>
+                <td className="text-right tabular-nums">{d.part}</td>
+                <td className="text-right tabular-nums">{d.total}</td>
+                <td className="text-right tabular-nums">{d.total ? `${Math.round((d.part / d.total) * 100)}%` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </div>
+  );
+}

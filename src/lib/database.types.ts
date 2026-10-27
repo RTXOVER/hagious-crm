@@ -51,8 +51,22 @@ type TicketEventRow = {
   id: number; ticket_id: string; kind: TicketEventKind; actor_id: string | null; body: string | null;
   data: Json | null; mentions: string[]; created_at: string;
 };
+type SuccessType = "contato_trimestral" | "reuniao_saude_financeira" | "alerta_tributario" | "acao_consultiva" | "outro";
+type SuccessStatus = "planejada" | "realizada" | "cancelada";
+type SuccessRecurrence = "nenhuma" | "trimestral" | "semestral" | "anual";
+type SuccessSettingsRow = { id: number; stale_days: number; needs_review: boolean; updated_at: string };
+type SuccessActionRow = {
+  id: string; client_id: string; type: SuccessType; objective: string; planned_date: string; responsible_id: string | null;
+  status: SuccessStatus; recurrence: SuccessRecurrence; result: string | null; done_at: string | null; done_by: string | null;
+  cancel_reason: string | null; previous_id: string | null; notified_due_at: string | null; notified_overdue_at: string | null;
+  created_by: string | null; created_at: string; updated_at: string;
+};
+type SuccessEventRow = {
+  id: number; action_id: string; kind: "criada" | "reagendada" | "realizada" | "cancelada" | "reaberta" | "responsavel" | "comentario";
+  actor_id: string | null; body: string | null; data: Json | null; created_at: string;
+};
 type NotificationRow = {
-  id: number; user_id: string; ticket_id: string | null; document_id: string | null; kind: string; title: string; body: string | null;
+  id: number; user_id: string; ticket_id: string | null; document_id: string | null; success_action_id: string | null; kind: string; title: string; body: string | null;
   link: string | null; dedupe_key: string; read_at: string | null; created_at: string;
 };
 type ChannelKind = "whatsapp" | "email";
@@ -403,7 +417,25 @@ export type Database = {
         [
           { foreignKeyName: "notifications_ticket_id_fkey"; columns: ["ticket_id"]; isOneToOne: false; referencedRelation: "tickets"; referencedColumns: ["id"] },
           { foreignKeyName: "notifications_document_id_fkey"; columns: ["document_id"]; isOneToOne: false; referencedRelation: "client_documents"; referencedColumns: ["id"] },
+          { foreignKeyName: "notifications_success_action_id_fkey"; columns: ["success_action_id"]; isOneToOne: false; referencedRelation: "success_actions"; referencedColumns: ["id"] },
         ]
+      >;
+      success_settings: TableDef<SuccessSettingsRow, "id">;
+      success_actions: TableDef<
+        SuccessActionRow,
+        "client_id" | "type" | "objective" | "planned_date",
+        [
+          { foreignKeyName: "success_actions_client_id_fkey"; columns: ["client_id"]; isOneToOne: false; referencedRelation: "clients"; referencedColumns: ["id"] },
+          { foreignKeyName: "success_actions_responsible_id_fkey"; columns: ["responsible_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "success_actions_done_by_fkey"; columns: ["done_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "success_actions_created_by_fkey"; columns: ["created_by"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "success_actions_previous_id_fkey"; columns: ["previous_id"]; isOneToOne: false; referencedRelation: "success_actions"; referencedColumns: ["id"] },
+        ]
+      >;
+      success_events: TableDef<
+        SuccessEventRow,
+        "action_id" | "kind",
+        [{ foreignKeyName: "success_events_action_id_fkey"; columns: ["action_id"]; isOneToOne: false; referencedRelation: "success_actions"; referencedColumns: ["id"] }]
       >;
       user_preferences: TableDef<
         UserPreferencesRow,
@@ -493,6 +525,21 @@ export type Database = {
         Returns: string | null;
       };
       channel_claim_sync: { Args: { p_account: string; p_min_interval_seconds: number }; Returns: boolean };
+      success_set_status: { Args: { p_action: string; p_status: SuccessStatus; p_note?: string | null }; Returns: undefined };
+      success_reschedule: { Args: { p_action: string; p_date: string; p_reason: string }; Returns: undefined };
+      success_client_overview: {
+        Args: never;
+        Returns: { client_id: string; legal_name: string; last_done_at: string | null; next_planned: string | null; next_action_id: string | null; days_without: number | null; stale: boolean }[];
+      };
+      success_sweep: { Args: { p_now?: string | null }; Returns: Json };
+      ticket_metrics: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          id: string; number: number; department: Department; category_id: string; category_name: string; assignee_id: string | null;
+          status: TicketStatus; created_at: string; first_responded_at: string | null; first_response_due_at: string | null;
+          resolved_at: string | null; resolution_due_at: string | null; first_response_minutes: number | null; resolution_minutes: number | null;
+        }[];
+      };
       channel_message_status: { Args: { p_account: string; p_external_id: string; p_status: MessageStatus; p_error?: string | null }; Returns: boolean };
     };
     Enums: {
@@ -513,6 +560,9 @@ export type Database = {
       channel_status: ChannelStatus;
       message_direction: MessageDirection;
       message_status: MessageStatus;
+      success_type: SuccessType;
+      success_status: SuccessStatus;
+      success_recurrence: SuccessRecurrence;
     };
     CompositeTypes: { [_ in never]: never };
   };

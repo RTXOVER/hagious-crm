@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { getFormatter } from "@/lib/preferences-server";
-import { AlertTriangle, BellRing, CalendarDays, Clock, FileClock, ListChecks } from "lucide-react";
+import { AlertTriangle, BellRing, CalendarDays, Clock, FileClock, HeartHandshake, ListChecks } from "lucide-react";
+import { saveSuccessSettingsAction } from "../../sucesso/actions";
+import { SuccessSettingsForm } from "../../sucesso/success-forms";
 import { describeRule } from "@/lib/documents";
 import { saveDocSettingsAction, saveDocTypeAction } from "../../documentos/actions";
 import { DocSettingsForm, DocTypeForm } from "../../documentos/doc-forms";
@@ -20,22 +22,24 @@ const SCOPE_LABEL = { nacional: "Nacional", estadual: "Estadual", municipal: "Mu
 export default async function SettingsPage() {
   const f = await getFormatter();
   const supabase = await createClient();
-  const [profile, { data: settings }, { data: categories }, { data: holidays }, { data: docSettings }, { data: docTypes }] = await Promise.all([
+  const [profile, { data: settings }, { data: categories }, { data: holidays }, { data: docSettings }, { data: docTypes }, { data: successSettings }] = await Promise.all([
     requireManager(),
     supabase.from("sla_settings").select("*").eq("id", 1).maybeSingle(),
     supabase.from("ticket_categories").select("*").order("department").order("name"),
     supabase.from("holidays").select("*").gte("day", new Date().getFullYear() + "-01-01").order("day"),
     supabase.from("document_settings").select("*").eq("id", 1).maybeSingle(),
     supabase.from("document_types").select("*").order("department").order("name"),
+    supabase.from("success_settings").select("*").eq("id", 1).maybeSingle(),
   ]);
   const pending =
     (categories ?? []).filter((c) => c.needs_review).length +
     (settings?.needs_review ? 1 : 0) +
-    (docTypes ?? []).filter((t) => t.needs_review).length;
+    (docTypes ?? []).filter((t) => t.needs_review).length +
+    (successSettings?.needs_review ? 1 : 0);
 
   return (
     <>
-      <PageHeader title="Prazos e lembretes" description="Regras dos prazos (SLA) dos tickets e dos lembretes de documentos." />
+      <PageHeader title="Prazos e lembretes" description="Regras dos prazos (SLA) dos tickets, dos lembretes de documentos e do acompanhamento de clientes." />
 
       {pending > 0 && (
         <div className="mb-6">
@@ -173,6 +177,18 @@ export default async function SettingsPage() {
           </div>
         </section>
       </div>
+
+      <section className="card mt-6 p-6" aria-labelledby="sucesso-cfg">
+        <h2 id="sucesso-cfg" className="mb-1 flex items-center gap-2 text-lg font-extrabold">
+          <HeartHandshake className="h-5 w-5 text-muted" /> Sucesso do cliente {successSettings?.needs_review && <Badge tone="amber">a confirmar</Badge>}
+        </h2>
+        <p className="mb-4 text-sm text-muted">Define quando um cliente passa a aparecer como “sem acompanhamento recente” no painel e na tela de Sucesso do cliente.</p>
+        {successSettings ? (
+          <SuccessSettingsForm action={saveSuccessSettingsAction} initial={successSettings} />
+        ) : (
+          <Alert tone="danger">Configuração não encontrada. A migração de sucesso do cliente foi aplicada?</Alert>
+        )}
+      </section>
     </>
   );
 }

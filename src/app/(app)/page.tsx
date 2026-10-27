@@ -6,6 +6,8 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  ChartColumn,
+  HeartHandshake,
   Clock,
   FileClock,
   Ticket,
@@ -40,13 +42,17 @@ export default async function DashboardPage(props: PageProps<"/">) {
   const supabase = await createClient();
   // Perfil, indicadores e histórico em paralelo (cada consulta ao banco leva ~0,3 s)
   const todayIso = todaySP();
-  const [profile, dash, tk, docs, { erro }] = await Promise.all([
+  const [profile, dash, tk, docs, { erro }, sLate, sWeek, overview] = await Promise.all([
     requireProfile(),
     loadDashboard(supabase),
     loadTicketStats(supabase),
     loadDocumentStats(supabase, todayIso, addDays(todayIso, 7)),
     props.searchParams,
+    supabase.from("success_actions").select("id", { count: "exact", head: true }).eq("status", "planejada").lt("planned_date", todayIso),
+    supabase.from("success_actions").select("id", { count: "exact", head: true }).eq("status", "planejada").gte("planned_date", todayIso).lte("planned_date", addDays(todayIso, 7)),
+    supabase.rpc("success_client_overview"),
   ]);
+  const staleClients = (overview.data ?? []).filter((o) => o.stale).length;
   const manager = isManager(profile);
 
   const activity = manager
@@ -68,11 +74,14 @@ export default async function DashboardPage(props: PageProps<"/">) {
         title={`Olá, ${profile.full_name.split(" ")[0]}`}
         description={today}
         actions={
-          manager && (
-            <Link href="/clientes/novo" className="btn-primary">
-              <Plus className="h-4 w-4" /> Novo cliente
-            </Link>
-          )
+          <>
+            <Link href="/indicadores" className="btn-secondary"><ChartColumn className="h-4 w-4" /> Indicadores</Link>
+            {manager && (
+              <Link href="/clientes/novo" className="btn-primary">
+                <Plus className="h-4 w-4" /> Novo cliente
+              </Link>
+            )}
+          </>
         }
       />
 
@@ -108,6 +117,19 @@ export default async function DashboardPage(props: PageProps<"/">) {
             <Stat href="/documentos?visao=criticos" icon={AlertTriangle} label="Atrasados" value={docs.late} note={docs.late ? "No relatório crítico" : "Nenhum atrasado"} />
             <Stat href="/documentos?visao=criticos" icon={Building2} label="Clientes em situação crítica" value={docs.critical.length}
               note={docs.critical.length ? docs.critical.slice(0, 2).map((c) => c.name).join(", ") + (docs.critical.length > 2 ? "…" : "") : "Com documento atrasado"} />
+          </div>
+        </section>
+      )}
+
+      {!sLate.error && (
+        <section className="mb-6" aria-labelledby="sucesso-kpi">
+          <h2 id="sucesso-kpi" className="mb-3 flex items-center gap-2 text-sm font-bold tracking-wide text-muted uppercase">
+            <HeartHandshake className="h-4 w-4" /> Sucesso do cliente
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Stat href="/sucesso?visao=atrasadas" icon={AlertTriangle} label="Contatos atrasados" value={sLate.count ?? 0} note={sLate.count ? "Data prevista já passou" : "Nenhum atrasado"} />
+            <Stat href="/sucesso" icon={Clock} label="Próximos 7 dias" value={sWeek.count ?? 0} note="Contatos e reuniões programados" />
+            <Stat href="/sucesso?visao=sem_acompanhamento" icon={UserX} label="Clientes sem acompanhamento" value={staleClients} note="Sem ação realizada recentemente" />
           </div>
         </section>
       )}
@@ -179,7 +201,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
               {!dash.attention.length ? (
                 <Alert tone="ok">Todos os clientes ativos estão com o cadastro completo.</Alert>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="relative overflow-x-auto">
                   <table className="table-base">
                     <thead>
                       <tr><th>Cliente</th><th>Pendências</th><th className="sr-only">Abrir</th></tr>

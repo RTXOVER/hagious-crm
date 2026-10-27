@@ -4,8 +4,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { FileClock, Mail, MessageCircle, MessagesSquare, Plus, Ticket } from "lucide-react";
-import { DOC_STATUS_LABEL, describeRule, dueState, todaySP } from "@/lib/documents";
+import { FileClock, HeartHandshake, Mail, MessageCircle, MessagesSquare, Plus, Ticket } from "lucide-react";
+import { DOC_STATUS_LABEL, daysBetween, describeRule, dueState, todaySP } from "@/lib/documents";
+import { SUCCESS_TYPE_LABEL, planState, sinceLabel } from "@/lib/success";
 import { deleteRequirementAction, saveRequirementAction, setDocStatusAction, toggleRequirementAction } from "../../documentos/actions";
 import { QuickReceive, RequirementForm } from "../../documentos/doc-forms";
 import { OPEN_STATUSES, STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_TONE as TICKET_STATUS_TONE, slaState, ticketNumber } from "@/lib/tickets";
@@ -49,7 +50,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const supabase = await createClient();
   // Tudo em paralelo: cada consulta ao banco leva ~0,3 s. O histórico só retorna dados
   // para a gestão (regra do banco), então pode ser pedido sempre.
-  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes, saves, convs, doneDocs] = await Promise.all([
+  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes, saves, convs, doneDocs, successOpen, successDone] = await Promise.all([
     requireProfile(),
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("client_contacts").select("*").eq("client_id", id).order("is_primary", { ascending: false }).order("name"),
@@ -89,6 +90,9 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
     supabase.from("conversations").select("id, kind, contact_name, contact_address, last_message_at, unread_count").eq("client_id", id).order("last_message_at", { ascending: false }).limit(10),
     // Encerrados mais recentes (recebidos/dispensados), à parte das pendências
     supabase.from("client_documents").select("id, title, status, due_date").eq("client_id", id).neq("status", "pendente").order("due_date", { ascending: false }).limit(5),
+    // Sucesso do cliente: ações programadas e as últimas realizadas
+    supabase.from("success_actions").select("id, type, objective, planned_date, status, responsible_id").eq("client_id", id).eq("status", "planejada").order("planned_date").limit(20),
+    supabase.from("success_actions").select("id, type, objective, done_at, result, done_by").eq("client_id", id).eq("status", "realizada").order("done_at", { ascending: false }).limit(5),
   ]);
   // RLS: se a pessoa não tem acesso, o banco não devolve o registro -> 404
   if (!client) notFound();
@@ -106,6 +110,8 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const openDocs = docs.data ?? [];
   const lateCount = openDocs.filter((d) => d.due_date < today).length;
   const recentDone = doneDocs.data ?? [];
+  const lastSuccess = successDone.data?.[0];
+  const sinceSuccess = lastSuccess?.done_at ? daysBetween(todaySP(new Date(lastSuccess.done_at)), today) : null;
 
   return (
     <>
@@ -189,6 +195,54 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                     );
                   })}
               </ul>
+            )}
+          </section>
+
+          <section className="card scroll-mt-24 p-6" aria-labelledby="sucesso-title" id="sucesso">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 id="sucesso-title" className="flex items-center gap-2 text-lg font-extrabold">
+                <HeartHandshake className="h-5 w-5 text-link" /> Sucesso do cliente
+              </h2>
+              {client.status === "ativo" && <Link href={`/sucesso/nova?cliente=${id}`} className="btn-secondary"><Plus className="h-4 w-4" /> Programar ação</Link>}
+            </div>
+            <p className="mb-3 text-sm">
+              <span className="text-muted">Último acompanhamento: </span>
+              <strong>{lastSuccess ? `${f.date(lastSuccess.done_at)} (${sinceLabel(sinceSuccess).toLowerCase()})` : "nenhum registrado"}</strong>
+            </p>
+            {!successOpen.data?.length ? (
+              <p className="text-sm text-muted">Nenhuma ação programada{client.status === "ativo" ? ": programe um contato de acompanhamento." : "."}</p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {successOpen.data.map((a) => {
+                  const st = planState(a.status, a.planned_date, today);
+                  return (
+                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                      <span className="min-w-0">
+                        <Link href={`/sucesso/${a.id}`} className="link">{a.objective}</Link>
+                        <span className="block text-xs text-muted">{SUCCESS_TYPE_LABEL[a.type]} · {a.responsible_id ? nameOf.get(a.responsible_id) ?? "—" : "sem responsável"}</span>
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-xs tabular-nums text-muted">{f.date(a.planned_date)}</span>
+                        <Badge tone={st.tone}>{st.label}</Badge>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {!!successDone.data?.length && (
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-semibold text-muted hover:text-ink">Últimas realizadas ({successDone.data.length})</summary>
+                <ul className="mt-2 space-y-2">
+                  {successDone.data.map((a) => (
+                    <li key={a.id} className="rounded-lg bg-surface-2 p-3 text-sm">
+                      <Link href={`/sucesso/${a.id}`} className="font-semibold hover:underline">{a.objective}</Link>
+                      <span className="text-xs text-muted"> · {f.date(a.done_at)} · {a.done_by ? nameOf.get(a.done_by) ?? "—" : "—"}</span>
+                      {a.result && <p className="mt-1 line-clamp-3 whitespace-pre-wrap">{a.result}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </section>
 

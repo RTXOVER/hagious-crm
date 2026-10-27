@@ -13,7 +13,7 @@ Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendi
 | 3. Operação | Tickets, SLA, encaminhamentos, alertas | Pronto e testado no Supabase (banco e telas) |
 | 3. Operação | Documentos: exigências, pendências, lembretes (5/2/0 dias), relatório crítico | Pronto e testado no Supabase (banco e telas); envio ao cliente pelo WhatsApp na Etapa 4 |
 | 4. Integrações | Central de Conversas: WhatsApp oficial (coexistência) e e-mail (IMAP/SMTP) | E-mail pronto e testado com caixa real de teste; WhatsApp pronto e testado em modo de demonstração — **depende da configuração única da Hagious na Meta** (ver abaixo) |
-| 5. Gestão | Dashboard e validação final | Não iniciado |
+| 5. Gestão | Sucesso do cliente (contatos proativos, recorrência, lembretes) e Indicadores gerenciais com filtros e links para os registros | Pronto e testado no Supabase (banco e telas) |
 
 ## Perfis de acesso
 
@@ -80,10 +80,58 @@ marcar documento como recebido). Canais em **Conversas → Canais** (somente adm
   Limitações da Meta nesse modo: sem grupos; texto livre só até 24h após a última mensagem do cliente.
 - **Modo de demonstração**: simula mensagens chegando, com o mesmo processamento do canal real.
 
+## Sucesso do cliente
+
+Tela **Sucesso do cliente**: ações proativas por cliente — contato de acompanhamento, reunião de saúde financeira,
+alerta tributário preventivo e ação consultiva — com objetivo, data prevista, responsável, histórico e resultado.
+
+- Ações recorrentes (a cada 3, 6 ou 12 meses): ao registrar como realizada, a próxima já é programada.
+- Realizar exige o resultado; cancelar e reagendar exigem o motivo. Tudo fica no histórico da ação.
+- Lembretes internos (a cada hora, no expediente): no dia previsto e uma vez quando atrasa.
+- "Sem acompanhamento": cliente ativo sem ação realizada há mais de N dias (padrão 90, **a confirmar pela gestão**
+  em Prazos e lembretes).
+- Quem pode alterar: o responsável, quem programou, o Atendimento e a gestão. Reabrir ação encerrada: só a gestão.
+
+## Indicadores
+
+Tela **Indicadores**, com filtros de período, departamento e responsável. Cada número abre a lista de origem
+com os mesmos filtros, e a tela explica como cada número é calculado ("Como cada número é calculado").
+
+| Indicador | Como é calculado |
+|---|---|
+| Abertos agora / perto de vencer / atrasados | Situação atual, mesmas regras dos alertas (aguardando cliente não conta como atraso) |
+| Abertos no período | Tickets criados no período |
+| Prazo de resolução cumprido | Concluídos no período até o prazo ÷ concluídos no período (cancelados não entram) |
+| 1ª resposta no prazo | Respondidos no período até o prazo de 1ª resposta ÷ respondidos no período |
+| Tempo médio de 1ª resposta / resolução | Média em horário útil (expediente e feriados); a resolução desconta "aguardando cliente" |
+| Cumprimento por departamento e por tipo | Mesma regra, separada por departamento ou tipo de solicitação |
+| Volume por departamento / responsável | Tickets abertos no período (responsável atual) |
+| Documentos pendentes, atrasados, clientes críticos | Situação atual |
+| Contatos proativos | Previstos e realizados no período, atrasados e clientes sem acompanhamento |
+
+Os números respeitam as permissões: cada pessoa soma apenas o que já pode ver.
+
+## Critérios de aceite (validação final)
+
+| Critério | Como foi verificado |
+|---|---|
+| Cada perfil vê só o que deve | Testes de permissão no banco (`test:db`) e percurso pelas telas com 5 perfis |
+| Ticket com responsável, prazo em horário útil, alerta e encaminhamento registrado | Testes do banco (PGlite) e de tela |
+| Documentos com lembretes em 5/2/0 dias e relatório crítico | Testes do banco e de tela |
+| Mensagem de WhatsApp/e-mail ligada ao cliente, salva, vira ticket ou baixa documento | Testes de tela (WhatsApp em demonstração; e-mail com caixa real de teste) |
+| Contato proativo programado, lembrado, realizado com resultado e repetido | Testes do banco e de tela |
+| Indicadores com definição clara, filtros e acesso aos registros de origem | Testes automáticos de cálculo e de tela |
+| Tudo auditado | Histórico de alterações (audit_log) nas tabelas principais |
+
+**Dependências externas pendentes:** configuração única da Hagious na Meta (WhatsApp real), endereço público com HTTPS
+e modelos de mensagem aprovados para lembretes ao cliente pelo WhatsApp. **Valores a confirmar pela gestão:**
+expediente, prazos padrão de 1ª resposta e de "Solicitação geral", alerta de 25%, feriados municipais, tipos de
+documento sugeridos e o prazo de "sem acompanhamento" (90 dias).
+
 ## Testes
 
 ```powershell
-npm test          # validações (CNPJ, telefones, formulários) — não precisa de banco
+npm test          # validações, prazos, documentos, canais e cálculos dos indicadores — não precisa de banco
 npm run test:db   # permissões no banco — use SOMENTE em banco de desenvolvimento
 npm run typecheck
 npm run lint
@@ -102,6 +150,9 @@ src/lib/auth.ts          sessão e verificação de perfil no servidor
 src/lib/validation/      validação de CNPJ, telefone e formulários
 src/app/(app)/clientes/  módulo de clientes
 src/app/(app)/equipe/    gestão de contas (admin)
+src/app/(app)/sucesso/   sucesso do cliente
+src/app/(app)/indicadores/ indicadores gerenciais
+src/lib/indicators.ts    regras de cálculo dos indicadores
 scripts/create-admin.mjs cria o primeiro administrador
 tests/                   testes automáticos
 ```
