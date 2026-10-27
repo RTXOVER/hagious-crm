@@ -54,7 +54,37 @@ export async function loadTicketStats(supabase: DB) {
   };
 }
 
-export type AttentionItem ={ id: string; name: string; issues: string[] };
+/**
+ * Indicadores de documentos (respeitam as permissões de quem vê).
+ * - Pendentes: situação "pendente".
+ * - Vencem em 7 dias: pendentes com vencimento de hoje até 7 dias.
+ * - Atrasados: pendentes com vencimento antes de hoje (relatório crítico).
+ * - Clientes críticos: clientes com ao menos um documento atrasado.
+ * "Hoje" é a data no fuso de Brasília. Retorna null se a estrutura ainda não existir no banco.
+ */
+export async function loadDocumentStats(supabase: DB, today: string, in7: string) {
+  const base = () => supabase.from("client_documents").select("id", { count: "exact", head: true }).eq("status", "pendente");
+  const [all, week, late] = await Promise.all([
+    base(),
+    base().gte("due_date", today).lte("due_date", in7),
+    supabase.from("client_documents").select("client_id, client:clients(legal_name)").eq("status", "pendente").lt("due_date", today).limit(5000),
+  ]);
+  if (all.error) return null;
+  const byClient = new Map<string, { id: string; name: string; count: number }>();
+  for (const d of late.data ?? []) {
+    const cur = byClient.get(d.client_id) ?? { id: d.client_id, name: d.client?.legal_name ?? "Cliente", count: 0 };
+    cur.count++;
+    byClient.set(d.client_id, cur);
+  }
+  return {
+    pending: all.count ?? 0,
+    week: week.count ?? 0,
+    late: late.data?.length ?? 0,
+    critical: [...byClient.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
+  };
+}
+
+export type AttentionItem = { id: string; name: string; issues: string[] };
 
 /**
  * Indicadores do painel. Como a consulta usa a sessão do usuário,

@@ -335,6 +335,42 @@ describe.skipIf(!configured)("Permissões no banco (RLS)", () => {
       expect(t!.overdue_notified_at).not.toBeNull();
     });
 
+    it("documentos: exigência gera pendência, lembrete sai uma vez e recebimento encerra a cobrança", async () => {
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+      const due = new Date(`${today}T12:00:00Z`);
+      due.setUTCDate(due.getUTCDate() + 5);
+      const dueIso = due.toISOString().slice(0, 10);
+      const { data: type } = await service.from("document_types").select("id").eq("department", "fiscal").limit(1).single();
+
+      // Fiscal cadastra a exigência; DP (não atende o cliente) não consegue
+      const denied = await users.dp.client.from("document_requirements")
+        .insert({ client_id: clientId, document_type_id: type!.id, periodicity: "mensal", due_day: 10 });
+      expect(denied.error).not.toBeNull();
+      const { error } = await users.fiscal.client.from("document_requirements")
+        .insert({ client_id: clientId, document_type_id: type!.id, periodicity: "mensal", due_day: due.getUTCDate() });
+      expect(error).toBeNull();
+      const { data: doc } = await service.from("client_documents").select("id, status").eq("client_id", clientId).eq("due_date", dueIso).single();
+      expect(doc?.status).toBe("pendente");
+      const { data: hidden } = await users.dp.client.from("client_documents").select("id").eq("id", doc!.id);
+      expect(hidden ?? []).toHaveLength(0);
+
+      // Varredura às 10h de hoje: 1 lembrete interno, sem duplicar ao rodar de novo
+      const at10 = `${today}T10:00:00-03:00`;
+      await service.rpc("documents_sweep", { p_now: at10 });
+      await service.rpc("documents_sweep", { p_now: at10 });
+      const { data: rem } = await service.from("document_reminders").select("channel, days_before, status").eq("document_id", doc!.id);
+      expect(rem?.filter((r) => r.channel === "interno")).toEqual([{ channel: "interno", days_before: 5, status: "enviado" }]);
+
+      // Dispensar exige motivo; atendimento registra o recebimento
+      const noReason = await users.fiscal.client.from("client_documents").update({ status: "dispensado" }).eq("id", doc!.id);
+      expect(noReason.error).not.toBeNull();
+      const rec = await users.atend.client.from("client_documents").update({ status: "recebido" }).eq("id", doc!.id).select("received_by");
+      expect(rec.data?.[0]?.received_by).toBe(users.atend.id);
+      await service.rpc("documents_sweep", { p_now: at10 });
+      const { count } = await service.from("document_reminders").select("id", { count: "exact", head: true }).eq("document_id", doc!.id);
+      expect(count).toBe(rem!.length);
+    });
+
     it("usuário não lê avisos de outra pessoa nem marca como lidos", async () => {
       const r = await users.fiscal.client.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", users.gestor.id).select("id");
       expect(r.data ?? []).toHaveLength(0);

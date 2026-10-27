@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { MessageCircle, Plus, Ticket } from "lucide-react";
+import { FileClock, MessageCircle, Plus, Ticket } from "lucide-react";
+import { DOC_STATUS_LABEL, addDays, describeRule, dueState, formatDate, todaySP } from "@/lib/documents";
+import { deleteRequirementAction, saveRequirementAction, setDocStatusAction, toggleRequirementAction } from "../../documentos/actions";
+import { QuickReceive, RequirementForm } from "../../documentos/doc-forms";
 import { OPEN_STATUSES, STATUS_LABEL as TICKET_STATUS_LABEL, STATUS_TONE as TICKET_STATUS_TONE, slaState, ticketNumber } from "@/lib/tickets";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
 import {
@@ -51,7 +54,7 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const supabase = await createClient();
   // Tudo em paralelo: cada consulta ao banco leva ~0,3 s. O histórico só retorna dados
   // para a gestão (regra do banco), então pode ser pedido sempre.
-  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets] = await Promise.all([
+  const [profile, { data: client }, contacts, services, responsibles, people, history, tickets, requirements, docs, docTypes] = await Promise.all([
     requireProfile(),
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     supabase.from("client_contacts").select("*").eq("client_id", id).order("is_primary", { ascending: false }).order("name"),
@@ -71,6 +74,20 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
       .eq("client_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    // Documentos: exigências e pendências
+    supabase
+      .from("document_requirements")
+      .select("*, type:document_types(name)")
+      .eq("client_id", id)
+      .order("active", { ascending: false })
+      .order("created_at"),
+    supabase
+      .from("client_documents")
+      .select("id, title, status, department, due_date, received_at")
+      .eq("client_id", id)
+      .order("due_date", { ascending: true })
+      .limit(60),
+    supabase.from("document_types").select("id, name, department, default_periodicity, default_due_day, description").eq("active", true).order("name"),
   ]);
   // RLS: se a pessoa não tem acesso, o banco não devolve o registro -> 404
   if (!client) notFound();
@@ -79,6 +96,19 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
   const nameOf = new Map((people.data ?? []).map((p) => [p.id, p.full_name]));
   const currentResp = Object.fromEntries((responsibles.data ?? []).map((r) => [r.department, r.user_id]));
   const activePeople = (people.data ?? []).filter((p) => p.active);
+  const today = todaySP();
+  // Exigências: gestão ou o próprio departamento (mesma regra do banco)
+  const canEditDep = (dep: string) => manager || profile.department === dep;
+  const usableTypes = (docTypes.data ?? []).filter(
+    (t) => t.department !== "atendimento" && canEditDep(t.department),
+  ) as Parameters<typeof RequirementForm>[0]["types"];
+  const allDocs = docs.data ?? [];
+  const openDocs = allDocs.filter((d) => d.status === "pendente");
+  const lateCount = openDocs.filter((d) => d.due_date < today).length;
+  const recentDone = allDocs
+    .filter((d) => d.status !== "pendente" && d.due_date >= addDays(today, -60))
+    .sort((a, b) => b.due_date.localeCompare(a.due_date))
+    .slice(0, 5);
 
   return (
     <>
@@ -162,6 +192,111 @@ export default async function ClientPage(props: PageProps<"/clientes/[id]">) {
                     );
                   })}
               </ul>
+            )}
+          </section>
+
+          <section className="card scroll-mt-24 p-6" aria-labelledby="documentos-title" id="documentos">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 id="documentos-title" className="flex items-center gap-2 text-lg font-extrabold">
+                <FileClock className="h-5 w-5 text-link" /> Documentos
+                {lateCount > 0 && <Badge tone="red">{lateCount} atrasado(s)</Badge>}
+                {openDocs.length - lateCount > 0 && <Badge tone="blue">{openDocs.length - lateCount} pendente(s)</Badge>}
+              </h2>
+              <Link href={`/documentos/novo?cliente=${id}`} className="btn-secondary"><Plus className="h-4 w-4" /> Pendência avulsa</Link>
+            </div>
+
+            {openDocs.length > 0 ? (
+              <ul className="mb-5 divide-y divide-line rounded-xl border border-line">
+                {openDocs.slice(0, 10).map((d) => {
+                  const st = dueState(d.status, d.due_date, today);
+                  return (
+                    <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                      <span>
+                        <Link href={`/documentos/${d.id}`} className="link">{d.title}</Link>
+                        <span className="ml-2 text-xs text-muted tabular-nums">vence {formatDate(d.due_date)}</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Badge tone={st.tone}>{st.label}</Badge>
+                        <QuickReceive action={setDocStatusAction.bind(null, d.id)} label={d.title} />
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mb-5 text-sm text-muted">Nenhum documento pendente.</p>
+            )}
+            {recentDone.length > 0 && (
+              <p className="-mt-3 mb-5 text-xs text-muted">
+                Recentes: {recentDone.map((d) => `${d.title} (${formatDate(d.due_date)}): ${DOC_STATUS_LABEL[d.status].toLowerCase()}`).join(" · ")}
+              </p>
+            )}
+
+            <h3 className="mb-2 text-sm font-bold">O que o cliente entrega com frequência</h3>
+            {!requirements.data?.length ? (
+              <p className="text-sm text-muted">Nenhuma exigência cadastrada. Cadastre abaixo e as pendências serão criadas sozinhas, com lembretes.</p>
+            ) : (
+              <ul className="divide-y divide-line">
+                {requirements.data.map((r) => (
+                  <li key={r.id} className="py-3 text-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold">
+                          {r.type?.name} <Badge>{DEPARTMENT_LABEL[r.department]}</Badge>{" "}
+                          {!r.active && <Badge tone="gray">Pausada</Badge>}
+                        </p>
+                        <p className="text-muted">
+                          {describeRule(r.periodicity, r.due_day, r.first_month)}
+                          {r.responsible_id && ` · cobra: ${nameOf.get(r.responsible_id) ?? "—"}`}
+                          {r.ends_on && ` · até ${formatDate(r.ends_on)}`}
+                        </p>
+                        {r.notes && <p className="text-xs text-muted">{r.notes}</p>}
+                      </div>
+                      {canEditDep(r.department) && (
+                        <div className="flex items-center gap-3">
+                          <details className="relative">
+                            <summary className="link cursor-pointer list-none text-xs">Editar</summary>
+                            <div className="absolute right-0 z-10 mt-2 w-[min(40rem,calc(100vw-3rem))] rounded-2xl border border-line bg-surface p-5 shadow-(--shadow-lift)">
+                              <RequirementForm
+                                action={saveRequirementAction.bind(null, id, r.id)}
+                                types={[{
+                                  id: r.document_type_id,
+                                  name: r.type?.name ?? "",
+                                  department: r.department as "contabil" | "fiscal" | "dp",
+                                  default_periodicity: r.periodicity,
+                                  default_due_day: r.due_day,
+                                }]}
+                                people={activePeople}
+                                initial={r}
+                                today={today}
+                                submitLabel="Salvar exigência"
+                              />
+                            </div>
+                          </details>
+                          <ConfirmButton
+                            action={toggleRequirementAction.bind(null, id, r.id, !r.active)}
+                            label={r.active ? "Pausar" : "Reativar"}
+                            question={r.active ? `Pausar "${r.type?.name}"? As próximas pendências deixam de ser exigidas.` : `Reativar "${r.type?.name}"?`}
+                          />
+                          <ConfirmButton
+                            action={deleteRequirementAction.bind(null, id, r.id)}
+                            label="Remover"
+                            question={`Remover a exigência "${r.type?.name}"? O histórico de recebimentos é mantido.`}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {client.status === "ativo" && usableTypes.length > 0 && (
+              <details className="mt-4 rounded-xl border border-line p-4">
+                <summary className="cursor-pointer text-sm font-bold text-link">+ Adicionar exigência</summary>
+                <div className="mt-4">
+                  <RequirementForm action={saveRequirementAction.bind(null, id, null)} types={usableTypes} people={activePeople} today={today} submitLabel="Criar exigência" />
+                </div>
+              </details>
             )}
           </section>
 

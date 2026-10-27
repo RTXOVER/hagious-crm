@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRightLeft, AtSign, Bell, CheckCheck, Clock, MessageSquare, Ticket, UserRound } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, AtSign, Bell, CheckCheck, Clock, FileClock, MessageSquare, Ticket, UserRound } from "lucide-react";
 import { requireProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/page-header";
@@ -20,8 +20,10 @@ const ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   prazo_vencido: AlertTriangle,
   primeira_resposta_atrasada: AlertTriangle,
   escalonamento: AlertTriangle,
+  documento_lembrete: FileClock,
+  documento_atrasado: AlertTriangle,
 };
-const URGENT = new Set(["prazo_vencido", "primeira_resposta_atrasada", "escalonamento"]);
+const URGENT = new Set(["prazo_vencido", "primeira_resposta_atrasada", "escalonamento", "documento_atrasado"]);
 
 export default async function NotificationsPage() {
   const supabase = await createClient();
@@ -79,7 +81,7 @@ export default async function NotificationsPage() {
           })}
         </ul>
       )}
-      <p className="mt-4 text-xs text-muted">Avisos de {profile.full_name}. Os alertas de prazo são verificados automaticamente a cada 5 minutos.</p>
+      <p className="mt-4 text-xs text-muted">Avisos de {profile.full_name}. Prazos de tickets são verificados a cada 5 minutos; lembretes de documentos, a cada hora no expediente.</p>
     </>
   );
 }

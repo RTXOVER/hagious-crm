@@ -11,7 +11,7 @@ Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendi
 | 1. Base | Banco, login, perfis, permissões, auditoria | Pronto e testado no Supabase (São Paulo) |
 | 2. Clientes | Cadastro, contatos, serviços, responsáveis, histórico | Pronto e testado no Supabase (São Paulo) |
 | 3. Operação | Tickets, SLA, encaminhamentos, alertas | Pronto e testado no Supabase (banco e telas) |
-| 3. Operação | Controle de documentos | Não iniciado |
+| 3. Operação | Documentos: exigências, pendências, lembretes (5/2/0 dias), relatório crítico | Pronto e testado no Supabase (banco e telas); envio ao cliente pelo WhatsApp na Etapa 4 |
 | 4. Integrações | WhatsApp oficial (Cloud API), lembretes, escalonamento | Não iniciado |
 | 5. Gestão | Dashboard e validação final | Não iniciado |
 

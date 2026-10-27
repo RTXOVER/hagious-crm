@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
-import { AlertTriangle, CalendarDays, Clock, ListChecks } from "lucide-react";
+import { AlertTriangle, BellRing, CalendarDays, Clock, FileClock, ListChecks } from "lucide-react";
+import { describeRule } from "@/lib/documents";
+import { saveDocSettingsAction, saveDocTypeAction } from "../documentos/actions";
+import { DocSettingsForm, DocTypeForm } from "../documentos/doc-forms";
 import { requireManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
@@ -9,24 +12,29 @@ import { ConfirmButton } from "../clientes/[id]/detail-forms";
 import { addHolidayAction, removeHolidayAction, saveCategoryAction, saveSettingsAction } from "./actions";
 import { CategoryForm, HolidayForm, SettingsForm } from "./config-forms";
 
-export const metadata: Metadata = { title: "Prazos e calendário" };
+export const metadata: Metadata = { title: "Prazos e lembretes" };
 
 const SCOPE_LABEL = { nacional: "Nacional", estadual: "Estadual", municipal: "Municipal", empresa: "Empresa" } as const;
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
 
 export default async function SettingsPage() {
   const supabase = await createClient();
-  const [profile, { data: settings }, { data: categories }, { data: holidays }] = await Promise.all([
+  const [profile, { data: settings }, { data: categories }, { data: holidays }, { data: docSettings }, { data: docTypes }] = await Promise.all([
     requireManager(),
     supabase.from("sla_settings").select("*").eq("id", 1).maybeSingle(),
     supabase.from("ticket_categories").select("*").order("department").order("name"),
     supabase.from("holidays").select("*").gte("day", new Date().getFullYear() + "-01-01").order("day"),
+    supabase.from("document_settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("document_types").select("*").order("department").order("name"),
   ]);
-  const pending = (categories ?? []).filter((c) => c.needs_review).length + (settings?.needs_review ? 1 : 0);
+  const pending =
+    (categories ?? []).filter((c) => c.needs_review).length +
+    (settings?.needs_review ? 1 : 0) +
+    (docTypes ?? []).filter((t) => t.needs_review).length;
 
   return (
     <>
-      <PageHeader title="Prazos e calendário" description="Regras usadas para calcular os prazos (SLA) de todos os tickets." />
+      <PageHeader title="Prazos e lembretes" description="Regras dos prazos (SLA) dos tickets e dos lembretes de documentos." />
 
       {pending > 0 && (
         <div className="mb-6">
@@ -117,6 +125,53 @@ export default async function SettingsPage() {
           <CategoryForm action={saveCategoryAction.bind(null, null)} submitLabel="Criar tipo" />
         </div>
       </section>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <section className="card p-6" aria-labelledby="lembretes-doc">
+          <h2 id="lembretes-doc" className="mb-1 flex items-center gap-2 text-lg font-extrabold"><BellRing className="h-5 w-5 text-muted" /> Lembretes de documentos</h2>
+          <p className="mb-4 text-sm text-muted">Quando avisar antes do vencimento. Documentos vencidos vão para o relatório crítico e a gestão é avisada.</p>
+          {docSettings ? (
+            <DocSettingsForm action={saveDocSettingsAction} initial={docSettings} />
+          ) : (
+            <Alert tone="danger">Configuração não encontrada. A migração de documentos foi aplicada?</Alert>
+          )}
+        </section>
+
+        <section className="card p-6 xl:col-span-2" aria-labelledby="tipos-doc">
+          <h2 id="tipos-doc" className="mb-1 flex items-center gap-2 text-lg font-extrabold"><FileClock className="h-5 w-5 text-muted" /> Documentos que os clientes entregam</h2>
+          <p className="mb-4 text-sm text-muted">Catálogo usado nas exigências de cada cliente. Frequência e dia são só sugestões ao cadastrar.</p>
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead>
+                <tr><th>Documento</th><th>Departamento</th><th>Sugestão</th><th>Situação</th><th className="text-right">Editar</th></tr>
+              </thead>
+              <tbody>
+                {(docTypes ?? []).map((t) => (
+                  <tr key={t.id}>
+                    <td className="font-semibold">{t.name} {t.needs_review && <Badge tone="amber">a confirmar</Badge>}</td>
+                    <td>{DEPARTMENT_LABEL[t.department]}</td>
+                    <td>{describeRule(t.default_periodicity, t.default_due_day, 1)}</td>
+                    <td>{t.active ? <Badge tone="green">Ativo</Badge> : <Badge>Inativo</Badge>}</td>
+                    <td className="text-right">
+                      <details className="inline-block text-left">
+                        <summary className="btn-secondary cursor-pointer list-none px-3 py-1.5 text-xs">Editar</summary>
+                        <div className="absolute right-6 z-10 mt-2 w-[min(36rem,calc(100vw-3rem))] rounded-2xl border border-line bg-surface p-5 shadow-(--shadow-lift)">
+                          <DocTypeForm action={saveDocTypeAction.bind(null, t.id)} submitLabel="Salvar documento"
+                            initial={{ ...t, department: t.department as "contabil" | "fiscal" | "dp" }} />
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-6 border-t border-line pt-5">
+            <h3 className="mb-3 font-bold">Novo documento</h3>
+            <DocTypeForm action={saveDocTypeAction.bind(null, null)} submitLabel="Cadastrar documento" />
+          </div>
+        </section>
+      </div>
     </>
   );
 }

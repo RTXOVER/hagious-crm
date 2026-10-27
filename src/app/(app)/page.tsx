@@ -6,6 +6,7 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  FileClock,
   Ticket,
   UserX,
   History,
@@ -16,7 +17,8 @@ import {
 } from "lucide-react";
 import { requireProfile, isManager } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { loadDashboard, loadTicketStats } from "@/lib/dashboard";
+import { loadDashboard, loadDocumentStats, loadTicketStats } from "@/lib/dashboard";
+import { addDays, todaySP } from "@/lib/documents";
 import { PageHeader, Badge, Alert } from "@/components/page-header";
 import { BarList, ColumnChart, Meter } from "@/components/charts";
 import { DEPARTMENT_LABEL, TAX_REGIME_LABEL } from "@/lib/labels";
@@ -36,10 +38,12 @@ const dateTime = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo
 export default async function DashboardPage(props: PageProps<"/">) {
   const supabase = await createClient();
   // Perfil, indicadores e histórico em paralelo (cada consulta ao banco leva ~0,3 s)
-  const [profile, dash, tk, { erro }] = await Promise.all([
+  const todayIso = todaySP();
+  const [profile, dash, tk, docs, { erro }] = await Promise.all([
     requireProfile(),
     loadDashboard(supabase),
     loadTicketStats(supabase),
+    loadDocumentStats(supabase, todayIso, addDays(todayIso, 7)),
     props.searchParams,
   ]);
   const manager = isManager(profile);
@@ -88,6 +92,21 @@ export default async function DashboardPage(props: PageProps<"/">) {
             <Stat href="/tickets?visao=encerrados" icon={CheckCircle2} label="Prazo cumprido (30 dias)" value={tk.onTime30}>
               <Meter value={tk.onTime30} total={tk.closed30} label="Tickets concluídos no prazo nos últimos 30 dias" />
             </Stat>
+          </div>
+        </section>
+      )}
+
+      {docs && (
+        <section className="mb-6" aria-labelledby="docs-kpi">
+          <h2 id="docs-kpi" className="mb-3 flex items-center gap-2 text-sm font-bold tracking-wide text-muted uppercase">
+            <FileClock className="h-4 w-4" /> Documentos
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Stat href="/documentos" icon={FileClock} label="Pendentes" value={docs.pending} note="Aguardando entrega do cliente" />
+            <Stat href="/documentos?visao=semana" icon={Clock} label="Vencem em 7 dias" value={docs.week} note="Lembretes automáticos ativos" />
+            <Stat href="/documentos?visao=criticos" icon={AlertTriangle} label="Atrasados" value={docs.late} note={docs.late ? "No relatório crítico" : "Nenhum atrasado"} />
+            <Stat href="/documentos?visao=criticos" icon={Building2} label="Clientes em situação crítica" value={docs.critical.length}
+              note={docs.critical.length ? docs.critical.slice(0, 2).map((c) => c.name).join(", ") + (docs.critical.length > 2 ? "…" : "") : "Com documento atrasado"} />
           </div>
         </section>
       )}
@@ -240,7 +259,7 @@ export default async function DashboardPage(props: PageProps<"/">) {
           )}
 
           <p className="mt-6 text-xs text-muted">
-            Os números consideram apenas os clientes que você tem permissão para ver. Tickets, prazos e documentos entram no painel a partir da Etapa 3.
+            Os números consideram apenas os clientes que você tem permissão para ver.
           </p>
         </>
       )}
