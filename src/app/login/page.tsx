@@ -14,7 +14,7 @@ const HIGHLIGHTS = [
 ];
 
 export default async function LoginPage(props: PageProps<"/login">) {
-  const [profile, { next }] = await Promise.all([getCurrentProfile(), props.searchParams]);
+  const [profile, { next, expirou }] = await Promise.all([getCurrentProfile(), props.searchParams]);
   if (profile) redirect("/");
 
   return (
@@ -54,6 +54,11 @@ export default async function LoginPage(props: PageProps<"/login">) {
             <h1 className="text-3xl font-extrabold tracking-tight">Entrar</h1>
             <p className="mt-1 text-sm text-muted">Use o e-mail e a senha fornecidos pelo administrador.</p>
           </div>
+          {expirou === "1" && (
+            <p role="status" className="mb-4 rounded-lg bg-info-soft px-3 py-2 text-sm font-medium text-info">
+              Sua sessão foi encerrada após 8 horas sem uso. Entre novamente.
+            </p>
+          )}
           <div className="card p-6 shadow-(--shadow-lift)">
             <LoginForm next={typeof next === "string" ? next : "/"} />
           </div>

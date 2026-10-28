@@ -4,6 +4,12 @@ import nodemailer from "nodemailer";
 import { simpleParser, type AddressObject } from "mailparser";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ingestMessage, mergeConfig, readSecret } from "@/lib/channels/accounts";
+import { assertSafeMailHost } from "@/lib/security/net-guard";
+
+/** Confere os dois servidores antes de qualquer conexão (o endereço pode ter mudado desde o cadastro). */
+async function guardHosts(cfg: EmailConfig) {
+  await Promise.all([assertSafeMailHost(cfg.imap.host), assertSafeMailHost(cfg.smtp.host)]);
+}
 
 /**
  * E-mail por IMAP (receber) e SMTP (enviar): funciona com quase todos os provedores, sem cadastro em terceiros.
@@ -59,6 +65,7 @@ export function explainEmailError(e: unknown): string {
   if (err?.authenticationFailed || /auth|invalid credentials|535|login failed|AUTHENTICATIONFAILED/i.test(m)) {
     return "Usuário ou senha recusados pelo provedor. Confira a senha (no Gmail/Yahoo, use uma senha de app).";
   }
+  if (err?.code === "HOST_BLOCKED") return "Endereço de servidor não permitido por segurança. Use o endereço do provedor de e-mail.";
   if (/ENOTFOUND|EAI_AGAIN/i.test(m)) return "Servidor não encontrado. Confira o endereço do servidor.";
   if (/ETIMEDOUT|timeout|ECONNREFUSED/i.test(m)) return "O servidor não respondeu. Confira servidor e porta (IMAP 993, SMTP 465 ou 587).";
   if (/certificate|self.signed|TLS|SSL/i.test(m)) return "Falha de segurança (SSL/TLS). Confira a porta e a opção de conexão segura.";
@@ -67,6 +74,7 @@ export function explainEmailError(e: unknown): string {
 
 /** Testa IMAP e SMTP com os dados informados (antes de salvar). */
 export async function testEmailConnection(cfg: EmailConfig, password: string) {
+  await guardHosts(cfg);
   const imap = imapClient(cfg, password);
   try {
     await imap.connect();
@@ -160,6 +168,7 @@ export async function syncEmailAccount(accountId: string, opts: { minIntervalMs?
     if (!secret) throw new Error("Senha do e-mail não encontrada. Conecte de novo.");
 
     const me = account.address.toLowerCase();
+    await guardHosts(cfg);
     const imap = imapClient(cfg, secret.password);
     const folders = { ...(cfg.folders ?? {}) };
     let imported = 0;
@@ -256,6 +265,7 @@ export async function sendEmail(accountId: string, opts: { to: string; subject: 
   if (account.is_demo) return `<demo.${crypto.randomUUID()}@hagious.invalid>`;
   const secret = await readSecret<EmailSecret>(accountId);
   if (!secret) throw new Error("Senha do e-mail não encontrada. Conecte de novo.");
+  await guardHosts(account.config as EmailConfig);
   const info = await smtpTransport(account.config as EmailConfig, secret.password).sendMail({
     from: { name: account.label, address: account.address },
     to: opts.to,

@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { sessionCookieOptions } from "@/lib/security/headers";
 import type { Database } from "@/lib/database.types";
 import { publicEnv } from "@/lib/env";
 
@@ -10,10 +11,12 @@ import { publicEnv } from "@/lib/env";
  * Crie um novo cliente a cada requisição.
  */
 export async function createClient() {
-  const cookieStore = await cookies();
+  const [cookieStore, h] = await Promise.all([cookies(), headers()]);
   const { url, anonKey } = publicEnv();
+  const https = h.get("x-forwarded-proto") === "https";
 
   return createServerClient<Database>(url, anonKey, {
+    cookieOptions: sessionCookieOptions(https),
     cookies: {
       getAll() {
         return cookieStore.getAll();

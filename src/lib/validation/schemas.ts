@@ -123,3 +123,21 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
   }
   return out;
 }
+
+const COMMON_PASSWORD_PARTS = ["senha", "password", "hagious", "123456", "654321", "abcdef", "qwerty", "asdfgh", "admin", "brasil", "mudar", "trocar"];
+const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/**
+ * Motivo para recusar uma senha previsível (ou null se estiver boa). Complementa o mínimo de 10 caracteres,
+ * letra e número: bloqueia palavras óbvias, sequências, repetições e partes do e-mail ou do nome da pessoa.
+ */
+export function weakPasswordReason(password: string, email?: string, fullName?: string): string | null {
+  const p = norm(password);
+  if (COMMON_PASSWORD_PARTS.some((w) => p.includes(w))) return "Senha muito previsível (evite palavras como “senha”, “hagious” ou sequências).";
+  if (/(.)\1{3,}/.test(p)) return "Evite repetir o mesmo caractere várias vezes seguidas.";
+  if (new Set(p).size < 5) return "Use mais caracteres diferentes.";
+  const local = email ? norm(email.split("@")[0]) : "";
+  const parts = [local, ...(fullName ? norm(fullName).split(/\s+/) : []), ...local.split(/[._\-+]/)].filter((x) => x.length >= 4);
+  if (parts.some((x) => p.includes(x))) return "A senha não pode conter seu nome ou seu e-mail.";
+  return null;
+}

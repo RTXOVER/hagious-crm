@@ -27,6 +27,24 @@ Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendi
 As regras ficam no banco (Row Level Security), então valem mesmo que alguém tente acessar a API diretamente.
 O cadastro público está desativado: só administradores criam contas.
 
+## Segurança
+
+| Camada | Proteção |
+|---|---|
+| Banco | Regras de acesso por linha em todas as tabelas; visitante sem login não tem nenhum acesso; funções só para quem precisa; ninguém além do servidor esvazia tabelas |
+| Login | Mensagem genérica (não revela se o e-mail existe); bloqueio de 15 min após 5 senhas erradas seguidas na conta ou 20 erros do mesmo endereço; aviso aos administradores |
+| Senhas | Mínimo 10 caracteres com letra e número; recusa senhas previsíveis ("senha", "hagious", sequências) e partes do nome/e-mail; troca exige a senha atual |
+| Sessão | Cookies httpOnly (scripts não leem o token), SameSite e Secure com HTTPS; encerra após 8 h sem uso |
+| Páginas | Política de conteúdo (CSP) com nonce por resposta; sem abrir dentro de outros sites; cabeçalhos anti-sniffing e de isolamento; HSTS com HTTPS |
+| Integrações | Webhook do WhatsApp com assinatura HMAC; senha do e-mail criptografada (AES-256-GCM); servidor de e-mail não pode apontar para o próprio computador |
+| Registros | Tentativas de login guardadas 30 dias com hash (sem e-mail ou IP em texto) |
+
+**Senha esquecida:** o administrador gera senha nova para a equipe na tela **Equipe**. Se o próprio administrador esquecer,
+rode no terminal do servidor: `npm run reset-password -- "email@empresa.com"` (a senha provisória aparece só ali).
+
+**Para uso pela equipe** rode em modo de produção (`npm run build` e `npm run start -- -H 0.0.0.0`), nunca `npm run dev`
+na rede: o modo de desenvolvimento mostra detalhes internos.
+
 ## Como rodar
 
 Pré-requisitos: Node.js 20.9+ e um banco Supabase (opção A ou B).
@@ -154,5 +172,7 @@ src/app/(app)/sucesso/   sucesso do cliente
 src/app/(app)/indicadores/ indicadores gerenciais
 src/lib/indicators.ts    regras de cálculo dos indicadores
 scripts/create-admin.mjs cria o primeiro administrador
+scripts/reset-password.mjs senha provisória para uma conta (uso no servidor)
+src/lib/security/        bloqueio de tentativas, cabeçalhos/CSP, proteção de conexões
 tests/                   testes automáticos
 ```

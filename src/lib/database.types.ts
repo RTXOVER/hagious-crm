@@ -421,6 +421,7 @@ export type Database = {
         ]
       >;
       success_settings: TableDef<SuccessSettingsRow, "id">;
+      login_attempts: TableDef<{ id: number; account_key: string; ip_key: string; success: boolean; created_at: string }, "account_key" | "ip_key" | "success">;
       success_actions: TableDef<
         SuccessActionRow,
         "client_id" | "type" | "objective" | "planned_date",

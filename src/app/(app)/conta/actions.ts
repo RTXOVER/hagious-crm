@@ -4,7 +4,8 @@ import { createClient as createPlainClient } from "@supabase/supabase-js";
 import { requireProfile, type ActionState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/env";
-import { passwordSchema, fieldErrors } from "@/lib/validation/schemas";
+import { passwordSchema, fieldErrors, weakPasswordReason } from "@/lib/validation/schemas";
+import { loginBlocked, recordLogin } from "@/lib/security/throttle";
 
 export async function changePasswordAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const profile = await requireProfile();
@@ -15,11 +16,17 @@ export async function changePasswordAction(_prev: ActionState, formData: FormDat
     confirm: formData.get("confirm"),
   });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+  const weak = weakPasswordReason(parsed.data.password, profile.email, profile.full_name);
+  if (weak) return { errors: { password: weak } };
+  // A tela de troca de senha também não pode servir para adivinhar a senha atual
+  const wait = await loginBlocked(profile.email);
+  if (wait) return { errors: { current: `Muitas tentativas erradas. Tente de novo em ${wait} min.` } };
 
   // Confere a senha atual sem mexer na sessão aberta (cliente separado, sem cookies)
   const env = publicEnv();
   const check = createPlainClient(env.url, env.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { error: wrong } = await check.auth.signInWithPassword({ email: profile.email, password: current });
+  await recordLogin(profile.email, !wrong);
   if (wrong) return { errors: { current: "Senha atual incorreta." } };
   await check.auth.signOut({ scope: "local" }).catch(() => undefined); // encerra só a sessão de conferência
 
