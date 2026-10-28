@@ -2,6 +2,8 @@
 
 Central de relacionamento e operação contábil (Contábil, Fiscal, DP e Atendimento).
 
+📘 **[Manual de uso e instalação](docs/MANUAL.md)**: como usar cada tela, perfis, segurança e como ligar o servidor.
+
 **Tecnologias:** Next.js 16 (App Router) · React 19 · Tailwind CSS 4 · Supabase (PostgreSQL, autenticação, regras de acesso por linha) · Zod · Vitest.
 
 ## Situação das etapas
